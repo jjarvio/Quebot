@@ -1,0 +1,17 @@
+# Node
+node_modules/
+
+# Electron build
+dist/
+
+# Runtime data
+config.json
+queue-data.json
+stats-data.json
+
+# Secrets
+bot-token.txt
+
+# OS
+.DS_Store
+Thumbs.db

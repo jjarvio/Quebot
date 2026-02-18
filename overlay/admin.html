@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<title>Jonobotti – Admin</title>
+
+<style>
+  :root {
+    --bg: #0f0f13;
+    --card: #1a1b23;
+    --accent: #6c7cff;
+    --danger: #e74c3c;
+    --text: #ffffff;
+    --muted: #9aa0b4;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: 24px;
+    font-family: "Segoe UI", Inter, system-ui, sans-serif;
+    background: linear-gradient(180deg, #0f0f13, #0b0c10);
+    color: var(--text);
+  }
+
+  h1 {
+    margin: 0 0 12px 0;
+    font-size: 22px;
+  }
+
+  h2 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    color: var(--muted);
+  }
+
+  .header {
+    background: var(--card);
+    padding: 16px 20px;
+    border-radius: 14px;
+    margin-bottom: 20px;
+  }
+
+  .status {
+    display: flex;
+    gap: 24px;
+    margin-top: 8px;
+  }
+
+  .status span {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .card {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 16px;
+  }
+
+  button {
+    background: var(--accent);
+    border: none;
+    border-radius: 10px;
+    color: white;
+    padding: 12px 16px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  button.danger {
+    background: var(--danger);
+  }
+
+  button.full {
+    width: 100%;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #2a2c36;
+  }
+
+  li:last-child {
+    border-bottom: none;
+  }
+
+  .remove-btn {
+    background: none;
+    color: var(--danger);
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .result-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 10px;
+    align-items: center;
+  }
+
+  input {
+    background: #0f1016;
+    border: 1px solid #2a2c36;
+    border-radius: 8px;
+    padding: 10px;
+    color: white;
+    font-size: 14px;
+  }
+
+  input::placeholder {
+    color: var(--muted);
+  }
+</style>
+</head>
+
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>🎮 Jonobotti – Hallinta</h1>
+    <div class="status">
+      <div>
+        <span>Nyt vuorossa</span><br>
+        <strong id="current">-</strong>
+      </div>
+      <div>
+        <span>Seuraavana</span><br>
+        <strong id="next">-</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTION BUTTONS -->
+  <div class="cards">
+    <button class="full" onclick="send('next')">▶️ Seuraava</button>
+    <button class="full danger" onclick="send('clear')">🧹 Tyhjennä jono</button>
+  </div>
+
+  <!-- QUEUE -->
+  <div class="card">
+    <h2>📋 Jono</h2>
+    <ul id="queue"></ul>
+  </div>
+
+  <!-- RESULT -->
+  <div class="card" style="margin-top:20px;">
+    <h2>🏁 Pelin tulos</h2>
+    <div class="result-grid">
+      <input id="legsFor" type="number" placeholder="Pelaajan leg">
+      <input id="legsAgainst" type="number" placeholder="Juontajan leg">
+      <input id="avg" type="number" step="0.01" placeholder="Avg">
+      <button onclick="submitResult()">💾</button>
+    </div>
+  </div>
+
+<script>
+  const ws = new WebSocket(`ws://${location.host}`);
+
+  function send(action, payload = null) {
+    ws.send(JSON.stringify({ action, payload }));
+  }
+
+  function submitResult() {
+    const legsFor = parseInt(document.getElementById('legsFor').value);
+    const legsAgainst = parseInt(document.getElementById('legsAgainst').value);
+    const avg = parseFloat(document.getElementById('avg').value);
+
+    if (isNaN(legsFor) || isNaN(legsAgainst) || isNaN(avg)) {
+      alert('Täytä kaikki kentät oikein');
+      return;
+    }
+
+    send('result', { legsFor, legsAgainst, avg });
+
+    document.getElementById('legsFor').value = '';
+    document.getElementById('legsAgainst').value = '';
+    document.getElementById('avg').value = '';
+  }
+
+  ws.onmessage = event => {
+    const data = JSON.parse(event.data);
+
+    document.getElementById('current').textContent = data.current ?? '-';
+    document.getElementById('next').textContent = data.next ?? '-';
+
+    const ul = document.getElementById('queue');
+    ul.innerHTML = '';
+
+    data.queue.forEach((name, i) => {
+      const li = document.createElement('li');
+      li.textContent = `${i + 1}. ${name}`;
+
+      const btn = document.createElement('button');
+      btn.textContent = '❌';
+      btn.className = 'remove-btn';
+      btn.onclick = () => send('remove', name);
+
+      li.appendChild(btn);
+      ul.appendChild(li);
+    });
+  };
+</script>
+
+</body>
+</html>

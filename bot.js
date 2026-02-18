@@ -1,0 +1,285 @@
+const fs = require('fs');
+const path = require('path');
+const express = require('express');
+const WebSocket = require('ws');
+const tmi = require('tmi.js');
+
+/* ========= TIEDOSTOT ========= */
+
+const CONFIG_FILE = path.join(process.cwd(), 'config.json');
+const DATA_FILE = path.join(process.cwd(), 'queue-data.json');
+const STATS_FILE = path.join(process.cwd(), 'stats-data.json');
+
+/* ========= CONFIG ========= */
+
+function loadConfig() {
+  if (!fs.existsSync(CONFIG_FILE)) {
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify({
+      channel: '',
+      port: 3000,
+      setupCompleted: false
+    }, null, 2));
+  }
+  return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+}
+
+function saveConfig(cfg) {
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2));
+}
+
+/* ========= BOT TOKEN ========= */
+
+function loadBotToken() {
+  // 1️⃣ Dev-tilassa etsitään projektin juuresta
+  const devPath = path.join(process.cwd(), 'bot-token.txt');
+
+  if (fs.existsSync(devPath)) {
+    return fs.readFileSync(devPath, 'utf8').trim();
+  }
+
+  // 2️⃣ Buildatussa etsitään resourcesPathista
+  if (process.resourcesPath) {
+    const prodPath = path.join(process.resourcesPath, 'bot-token.txt');
+    if (fs.existsSync(prodPath)) {
+      return fs.readFileSync(prodPath, 'utf8').trim();
+    }
+  }
+
+  console.error('❌ bot-token.txt puuttuu (dev + prod)');
+  process.exit(1);
+}
+
+
+/* ========= RUNTIME STATE ========= */
+
+let queue = [];
+let current = null;
+let stats = {};
+let twitchClient = null;
+let wss = null;
+
+/* ========= DATA LOAD ========= */
+
+function loadData() {
+  if (fs.existsSync(DATA_FILE)) {
+    const d = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    queue = d.queue || [];
+    current = d.current || null;
+  }
+
+  if (fs.existsSync(STATS_FILE)) {
+    stats = JSON.parse(fs.readFileSync(STATS_FILE, 'utf8'));
+  }
+}
+
+function saveQueue() {
+  fs.writeFileSync(DATA_FILE, JSON.stringify({ queue, current }, null, 2));
+}
+
+function saveStats() {
+  fs.writeFileSync(STATS_FILE, JSON.stringify(stats, null, 2));
+}
+
+/* ========= BROADCAST ========= */
+
+function broadcast() {
+  saveQueue();
+
+  if (!wss) return;
+
+  const payload = JSON.stringify({
+    current,
+    next: queue[0] || null,
+    queue
+  });
+
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(payload);
+    }
+  });
+}
+
+/* ========= EXPRESS + WS (AINA PÄÄLLÄ) ========= */
+
+function startServer() {
+  loadData();
+
+  const config = loadConfig();
+  const app = express();
+
+  // 🔑 Overlay-polku (dev + build)
+  const overlayPath = process.resourcesPath
+    ? path.join(process.resourcesPath, 'overlay')
+    : path.join(process.cwd(), 'overlay');
+
+  console.log('🖼 Overlay-polku:', overlayPath);
+
+  app.use(express.json());
+  app.use(express.static(overlayPath));
+
+  // --- ADMIN UI ---
+  app.get('/admin', (req, res) => {
+    res.sendFile(path.join(overlayPath, 'admin.html'));
+  });
+
+  // --- SETUP UI ---
+  app.get('/setup.html', (req, res) => {
+    res.sendFile(path.join(overlayPath, 'setup.html'));
+  });
+
+  // --- SETUP SAVE ---
+  app.post('/setup/save', (req, res) => {
+    const channel = String(req.body.channel || '').trim().toLowerCase();
+
+    if (!channel) {
+      console.warn('⚠️ Setup yritettiin tallentaa ilman kanavaa');
+      return res.status(400).send('Channel missing');
+    }
+
+    const cfg = loadConfig();
+    cfg.channel = channel;
+    cfg.setupCompleted = true;
+    saveConfig(cfg);
+
+    console.log('✅ Setup tallennettu, kanava:', channel);
+    res.sendStatus(200);
+  });
+
+  const server = app.listen(config.port, () => {
+    console.log(`🌐 Setup / Admin / Overlay: http://localhost:${config.port}`);
+  });
+
+  // --- WEBSOCKET ---
+  wss = new WebSocket.Server({ server });
+
+  wss.on('connection', ws => {
+    // Lähetä tila heti
+    broadcast();
+
+    ws.on('message', msg => {
+      try {
+        const data = JSON.parse(msg);
+
+        if (data.action === 'next') {
+          current = queue.shift() || null;
+        }
+
+        if (data.action === 'clear') {
+          queue = [];
+          current = null;
+        }
+
+        if (data.action === 'remove' && data.payload) {
+          queue = queue.filter(n => n !== data.payload);
+        }
+
+        if (data.action === 'result' && current) {
+          const { legsFor, legsAgainst, avg } = data.payload || {};
+
+          if (
+            typeof legsFor !== 'number' ||
+            typeof legsAgainst !== 'number' ||
+            typeof avg !== 'number'
+          ) {
+            console.warn('⚠️ Virheellinen result-payload:', data.payload);
+            return;
+          }
+
+          stats[current] ??= {
+            games: 0,
+            wins: 0,
+            losses: 0,
+            legsFor: 0,
+            legsAgainst: 0,
+            avgSum: 0
+          };
+
+          stats[current].games += 1;
+          stats[current].legsFor += legsFor;
+          stats[current].legsAgainst += legsAgainst;
+          stats[current].avgSum += avg;
+
+          if (legsFor > legsAgainst) {
+            stats[current].wins += 1;
+          } else {
+            stats[current].losses += 1;
+          }
+
+          saveStats();
+          current = null;
+        }
+
+        broadcast();
+      } catch (err) {
+        console.error('WebSocket-virhe:', err);
+      }
+    });
+  });
+}
+
+
+/* ========= TWITCH BOT ========= */
+
+function startBot() {
+  const config = loadConfig();
+  if (!config.setupCompleted) {
+    console.log('⚠️ Setup ei valmis – Twitch-botti ei käynnisty');
+    return;
+  }
+
+  if (twitchClient) {
+    console.log('ℹ️ Twitch-botti on jo käynnissä');
+    return;
+  }
+
+  const BOT_USERNAME = 'SINUN_BOTIN_NIMI';
+  const OAUTH_TOKEN = loadBotToken();
+  const CHANNEL = config.channel.toLowerCase();
+
+  twitchClient = new tmi.Client({
+    identity: {
+      username: BOT_USERNAME,
+      password: OAUTH_TOKEN
+    },
+    channels: [CHANNEL]
+  });
+
+  twitchClient.connect();
+  console.log('🤖 Twitch-botti käynnistetty kanavalle:', CHANNEL);
+
+  twitchClient.on('message', (channel, tags, message, self) => {
+    if (self || !message.startsWith('!')) return;
+
+    const user = tags['display-name'];
+    const isMod = tags.mod || tags.badges?.broadcaster;
+
+    if (message === '!jonoon') {
+      if (queue.includes(user) || user === current) return;
+      queue.push(user);
+      broadcast();
+    }
+
+    if (message === '!seuraava' && isMod) {
+      current = queue.shift() || null;
+      broadcast();
+    }
+
+    if (message === '!stats') {
+      const d = stats[user];
+      if (!d) return;
+
+      const avg = (d.avgSum / d.games).toFixed(2);
+      twitchClient.say(channel,
+        `📊 ${user} | W/L ${d.wins}-${d.losses} | Legit ${d.legsFor}-${d.legsAgainst} | Avg ${avg}`
+      );
+    }
+  });
+}
+
+/* ========= EXPORT ========= */
+
+module.exports = {
+  startServer,
+  startBot
+};

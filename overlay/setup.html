@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<body style="background:#111;color:white;font-family:sans-serif;padding:40px">
+<h2>Jonobotti – Käyttöönotto</h2>
+<input id="channel" placeholder="Twitch-kanavan nimi" style="width:100%;padding:12px">
+<button onclick="save()" style="margin-top:20px;padding:12px;width:100%">Tallenna</button>
+
+<script>
+function save() {
+  const ch = channel.value.trim();
+
+  if (!ch) {
+    alert('Syötä Twitch-kanavan nimi');
+    return;
+  }
+
+  fetch('/setup/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ channel: ch })
+  })
+  .then(res => {
+    if (!res.ok) throw new Error('Setup failed');
+    document.body.innerHTML =
+      '<h2>✅ Tallennettu</h2><p>Käynnistä sovellus uudelleen.</p>';
+  })
+  .catch(err => {
+    alert('Virhe setupissa');
+    console.error(err);
+  });
+}
+</script>
+
+</body>
+</html>
