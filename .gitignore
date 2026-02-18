@@ -15,3 +15,5 @@ bot-token.txt
 # OS
 .DS_Store
 Thumbs.db
+stats-data.json
+

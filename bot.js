@@ -3,12 +3,21 @@ const path = require('path');
 const express = require('express');
 const WebSocket = require('ws');
 const tmi = require('tmi.js');
+const { app } = require('electron');
 
-/* ========= TIEDOSTOT ========= */
+/* ========= POLUT (DEV + PACKAGED) ========= */
 
-const CONFIG_FILE = path.join(process.cwd(), 'config.json');
-const DATA_FILE = path.join(process.cwd(), 'queue-data.json');
-const STATS_FILE = path.join(process.cwd(), 'stats-data.json');
+// Data tallennetaan:
+// DEV  → projektin juureen
+// PROD → AppData/Roaming/<app-nimi>/
+
+const BASE_PATH = app.isPackaged
+  ? app.getPath('userData')
+  : process.cwd();
+
+const CONFIG_FILE = path.join(BASE_PATH, 'config.json');
+const DATA_FILE = path.join(BASE_PATH, 'queue-data.json');
+const STATS_FILE = path.join(BASE_PATH, 'stats-data.json');
 
 /* ========= CONFIG ========= */
 
@@ -30,25 +39,21 @@ function saveConfig(cfg) {
 /* ========= BOT TOKEN ========= */
 
 function loadBotToken() {
-  // 1️⃣ Dev-tilassa etsitään projektin juuresta
+  // DEV
   const devPath = path.join(process.cwd(), 'bot-token.txt');
-
-  if (fs.existsSync(devPath)) {
+  if (!app.isPackaged && fs.existsSync(devPath)) {
     return fs.readFileSync(devPath, 'utf8').trim();
   }
 
-  // 2️⃣ Buildatussa etsitään resourcesPathista
-  if (process.resourcesPath) {
-    const prodPath = path.join(process.resourcesPath, 'bot-token.txt');
-    if (fs.existsSync(prodPath)) {
-      return fs.readFileSync(prodPath, 'utf8').trim();
-    }
+  // PROD (resources)
+  const prodPath = path.join(process.resourcesPath, 'bot-token.txt');
+  if (app.isPackaged && fs.existsSync(prodPath)) {
+    return fs.readFileSync(prodPath, 'utf8').trim();
   }
 
-  console.error('❌ bot-token.txt puuttuu (dev + prod)');
+  console.error('❌ bot-token.txt puuttuu');
   process.exit(1);
 }
-
 
 /* ========= RUNTIME STATE ========= */
 
@@ -100,40 +105,40 @@ function broadcast() {
   });
 }
 
-/* ========= EXPRESS + WS (AINA PÄÄLLÄ) ========= */
+/* ========= EXPRESS + WS ========= */
 
 function startServer() {
   loadData();
 
   const config = loadConfig();
-  const app = express();
+  const appExpress = express();
 
-  // 🔑 Overlay-polku (dev + build)
-  const overlayPath = process.resourcesPath
+  // 🔑 Overlay-polku oikein
+  const overlayPath = app.isPackaged
     ? path.join(process.resourcesPath, 'overlay')
-    : path.join(process.cwd(), 'overlay');
+    : path.join(__dirname, 'overlay');
 
   console.log('🖼 Overlay-polku:', overlayPath);
+  console.log('💾 Data-polku:', BASE_PATH);
 
-  app.use(express.json());
-  app.use(express.static(overlayPath));
+  appExpress.use(express.json());
+  appExpress.use(express.static(overlayPath));
 
-  // --- ADMIN UI ---
-  app.get('/admin', (req, res) => {
+  // --- ADMIN ---
+  appExpress.get('/admin', (req, res) => {
     res.sendFile(path.join(overlayPath, 'admin.html'));
   });
 
-  // --- SETUP UI ---
-  app.get('/setup.html', (req, res) => {
+  // --- SETUP ---
+  appExpress.get('/setup.html', (req, res) => {
     res.sendFile(path.join(overlayPath, 'setup.html'));
   });
 
   // --- SETUP SAVE ---
-  app.post('/setup/save', (req, res) => {
+  appExpress.post('/setup/save', (req, res) => {
     const channel = String(req.body.channel || '').trim().toLowerCase();
 
     if (!channel) {
-      console.warn('⚠️ Setup yritettiin tallentaa ilman kanavaa');
       return res.status(400).send('Channel missing');
     }
 
@@ -142,19 +147,17 @@ function startServer() {
     cfg.setupCompleted = true;
     saveConfig(cfg);
 
-    console.log('✅ Setup tallennettu, kanava:', channel);
+    console.log('✅ Setup tallennettu:', channel);
     res.sendStatus(200);
   });
 
-  const server = app.listen(config.port, () => {
-    console.log(`🌐 Setup / Admin / Overlay: http://localhost:${config.port}`);
+  const server = appExpress.listen(config.port, () => {
+    console.log(`🌐 http://localhost:${config.port}`);
   });
 
-  // --- WEBSOCKET ---
   wss = new WebSocket.Server({ server });
 
   wss.on('connection', ws => {
-    // Lähetä tila heti
     broadcast();
 
     ws.on('message', msg => {
@@ -181,10 +184,7 @@ function startServer() {
             typeof legsFor !== 'number' ||
             typeof legsAgainst !== 'number' ||
             typeof avg !== 'number'
-          ) {
-            console.warn('⚠️ Virheellinen result-payload:', data.payload);
-            return;
-          }
+          ) return;
 
           stats[current] ??= {
             games: 0,
@@ -195,16 +195,13 @@ function startServer() {
             avgSum: 0
           };
 
-          stats[current].games += 1;
+          stats[current].games++;
           stats[current].legsFor += legsFor;
           stats[current].legsAgainst += legsAgainst;
           stats[current].avgSum += avg;
 
-          if (legsFor > legsAgainst) {
-            stats[current].wins += 1;
-          } else {
-            stats[current].losses += 1;
-          }
+          if (legsFor > legsAgainst) stats[current].wins++;
+          else stats[current].losses++;
 
           saveStats();
           current = null;
@@ -218,18 +215,18 @@ function startServer() {
   });
 }
 
-
 /* ========= TWITCH BOT ========= */
 
 function startBot() {
   const config = loadConfig();
+
   if (!config.setupCompleted) {
-    console.log('⚠️ Setup ei valmis – Twitch-botti ei käynnisty');
+    console.log('⚠️ Setup ei valmis');
     return;
   }
 
   if (twitchClient) {
-    console.log('ℹ️ Twitch-botti on jo käynnissä');
+    console.log('ℹ️ Botti jo käynnissä');
     return;
   }
 
@@ -246,7 +243,7 @@ function startBot() {
   });
 
   twitchClient.connect();
-  console.log('🤖 Twitch-botti käynnistetty kanavalle:', CHANNEL);
+  console.log('🤖 Botti yhdistetty kanavalle:', CHANNEL);
 
   twitchClient.on('message', (channel, tags, message, self) => {
     if (self || !message.startsWith('!')) return;
@@ -270,8 +267,9 @@ function startBot() {
       if (!d) return;
 
       const avg = (d.avgSum / d.games).toFixed(2);
+
       twitchClient.say(channel,
-        `📊 ${user} | W/L ${d.wins}-${d.losses} | Legit ${d.legsFor}-${d.legsAgainst} | Avg ${avg}`
+        `📊 ${user} | W/L ${d.wins}-${d.losses} | Legs ${d.legsFor}-${d.legsAgainst} | Avg ${avg}`
       );
     }
   });

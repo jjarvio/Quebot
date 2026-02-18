@@ -1,10 +1,10 @@
 {
   "moikka11": {
-    "games": 2,
-    "wins": 2,
+    "games": 3,
+    "wins": 3,
     "losses": 0,
-    "legsFor": 4,
-    "legsAgainst": 2,
-    "avgSum": 86.6
+    "legsFor": 6,
+    "legsAgainst": 3,
+    "avgSum": 152.6
   }
 }
