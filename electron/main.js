@@ -4,7 +4,11 @@ const fs = require('fs');
 
 const bot = require('../bot');
 
-const CONFIG_FILE = path.join(process.cwd(), 'config.json');
+const BASE_PATH = app.isPackaged
+  ? app.getPath('userData')
+  : process.cwd();
+
+const CONFIG_FILE = path.join(BASE_PATH, 'config.json');
 
 function loadConfig() {
   if (!fs.existsSync(CONFIG_FILE)) return null;
@@ -26,12 +30,14 @@ function createWindow() {
 
   const config = loadConfig();
 
+  const port = config?.port || 3000;
+
   if (!config || !config.setupCompleted) {
     // Setup UI tulee Expressin kautta
-    win.loadURL('http://127.0.0.1:3000/setup.html');
+    win.loadURL(`http://127.0.0.1:${port}/setup.html`);
   } else {
     // Admin UI
-    win.loadURL(`http://127.0.0.1:${config.port}/admin`);
+    win.loadURL(`http://127.0.0.1:${port}/admin`);
     bot.startBot();
 
   }
@@ -43,9 +49,9 @@ function createWindow() {
 
 app.whenReady().then(() => {
   // 🔑 Express + WebSocket AINA
-  bot.startServer();
-
-  createWindow();
+  bot.startServer().then(() => {
+    createWindow();
+  });
 });
 
 app.on('window-all-closed', () => {
