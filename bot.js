@@ -151,8 +151,14 @@ function startServer() {
     res.sendStatus(200);
   });
 
+  let serverReadyResolve;
+  const serverReady = new Promise(resolve => {
+    serverReadyResolve = resolve;
+  });
+
   const server = appExpress.listen(config.port, () => {
     console.log(`🌐 http://localhost:${config.port}`);
+    serverReadyResolve();
   });
 
   wss = new WebSocket.Server({ server });
@@ -213,6 +219,8 @@ function startServer() {
       }
     });
   });
+
+  return serverReady;
 }
 
 /* ========= TWITCH BOT ========= */
