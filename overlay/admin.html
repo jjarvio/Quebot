@@ -54,6 +54,7 @@
     display: flex;
     gap: 8px;
     margin-bottom: 16px;
+    flex-wrap: wrap;
   }
 
   .tab-btn {
@@ -122,14 +123,14 @@
 
   input::placeholder { color: var(--muted); }
 
-  .loop-create {
+  .loop-create, .command-create {
     display: grid;
     grid-template-columns: 1fr 160px auto;
     gap: 10px;
     margin-bottom: 14px;
   }
 
-  .loop-item {
+  .loop-item, .command-item {
     display: grid;
     grid-template-columns: minmax(180px, 1fr) 120px auto auto auto;
     gap: 8px;
@@ -138,7 +139,11 @@
     border-bottom: 1px solid #2a2c36;
   }
 
-  .loop-item:last-child { border-bottom: none; }
+  .command-item {
+    grid-template-columns: 180px minmax(180px, 1fr) auto auto;
+  }
+
+  .loop-item:last-child, .command-item:last-child { border-bottom: none; }
 
   .loop-meta {
     grid-column: 1 / -1;
@@ -166,6 +171,7 @@
   <div class="tabs">
     <button id="tabQueueBtn" class="tab-btn active" onclick="switchTab('queue')">📋 Jono</button>
     <button id="tabLoopBtn" class="tab-btn" onclick="switchTab('loop')">🔁 Loop-viestit</button>
+    <button id="tabCommandBtn" class="tab-btn" onclick="switchTab('commands')">⚡ Custom Commands</button>
   </div>
 
   <section id="tabQueue" class="tab-content active">
@@ -204,18 +210,36 @@
     </div>
   </section>
 
+  <section id="tabCommands" class="tab-content">
+    <div class="card">
+      <h2>⚡ Custom Commands</h2>
+
+      <div class="command-create">
+        <input id="commandName" type="text" placeholder="Komento (esim. !dc)">
+        <input id="commandResponse" type="text" placeholder="Vastaus chattiin">
+        <button onclick="createCommand()">Lisää</button>
+      </div>
+
+      <div id="commandList"></div>
+    </div>
+  </section>
+
 <script>
   const ws = new WebSocket(`ws://${location.host}`);
   let latestLoopMessages = [];
+  let latestCustomCommands = [];
 
   function switchTab(tab) {
     const isQueue = tab === 'queue';
+    const isLoop = tab === 'loop';
 
     document.getElementById('tabQueue').classList.toggle('active', isQueue);
-    document.getElementById('tabLoop').classList.toggle('active', !isQueue);
+    document.getElementById('tabLoop').classList.toggle('active', isLoop);
+    document.getElementById('tabCommands').classList.toggle('active', tab === 'commands');
 
     document.getElementById('tabQueueBtn').classList.toggle('active', isQueue);
-    document.getElementById('tabLoopBtn').classList.toggle('active', !isQueue);
+    document.getElementById('tabLoopBtn').classList.toggle('active', isLoop);
+    document.getElementById('tabCommandBtn').classList.toggle('active', tab === 'commands');
   }
 
   function send(action, payload = null) {
@@ -251,6 +275,20 @@
     send('loop_add', { message, intervalMinutes });
     document.getElementById('loopMessage').value = '';
     document.getElementById('loopInterval').value = '';
+  }
+
+  function createCommand() {
+    const name = document.getElementById('commandName').value.trim().toLowerCase();
+    const response = document.getElementById('commandResponse').value.trim();
+
+    if (!name.startsWith('!') || name.length < 2 || !response) {
+      alert('Anna komento (!komento) ja vastaus');
+      return;
+    }
+
+    send('command_add', { name, response });
+    document.getElementById('commandName').value = '';
+    document.getElementById('commandResponse').value = '';
   }
 
   function formatCountdown(seconds) {
@@ -294,22 +332,13 @@
           return;
         }
 
-        send('loop_update', {
-          id: item.id,
-          message,
-          intervalMinutes
-        });
+        send('loop_update', { id: item.id, message, intervalMinutes });
       };
 
       const toggleBtn = document.createElement('button');
       toggleBtn.textContent = item.enabled ? 'Pysäytä' : 'Käynnistä';
       toggleBtn.className = item.enabled ? 'danger' : '';
-      toggleBtn.onclick = () => {
-        send('loop_toggle', {
-          id: item.id,
-          enabled: !item.enabled
-        });
-      };
+      toggleBtn.onclick = () => send('loop_toggle', { id: item.id, enabled: !item.enabled });
 
       const deleteBtn = document.createElement('button');
       deleteBtn.textContent = 'Poista';
@@ -328,7 +357,52 @@
       row.appendChild(toggleBtn);
       row.appendChild(deleteBtn);
       row.appendChild(meta);
+      container.appendChild(row);
+    });
+  }
 
+  function renderCommands() {
+    const container = document.getElementById('commandList');
+    container.innerHTML = '';
+
+    if (!latestCustomCommands.length) {
+      container.innerHTML = '<span style="color:#9aa0b4;">Ei custom-komentoja.</span>';
+      return;
+    }
+
+    latestCustomCommands.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'command-item';
+
+      const nameInput = document.createElement('input');
+      nameInput.value = item.name;
+
+      const responseInput = document.createElement('input');
+      responseInput.value = item.response;
+
+      const saveBtn = document.createElement('button');
+      saveBtn.textContent = 'Tallenna';
+      saveBtn.onclick = () => {
+        const name = nameInput.value.trim().toLowerCase();
+        const response = responseInput.value.trim();
+
+        if (!name.startsWith('!') || name.length < 2 || !response) {
+          alert('Anna komento (!komento) ja vastaus');
+          return;
+        }
+
+        send('command_update', { id: item.id, name, response });
+      };
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = 'Poista';
+      deleteBtn.className = 'danger';
+      deleteBtn.onclick = () => send('command_delete', item.id);
+
+      row.appendChild(nameInput);
+      row.appendChild(responseInput);
+      row.appendChild(saveBtn);
+      row.appendChild(deleteBtn);
       container.appendChild(row);
     });
   }
@@ -356,7 +430,9 @@
     });
 
     latestLoopMessages = data.loopMessages || [];
+    latestCustomCommands = data.customCommands || [];
     renderLoopMessages();
+    renderCommands();
   };
 </script>
 

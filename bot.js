@@ -7,10 +7,6 @@ const { app } = require('electron');
 
 /* ========= POLUT (DEV + PACKAGED) ========= */
 
-// Data tallennetaan:
-// DEV  → projektin juureen
-// PROD → AppData/Roaming/<app-nimi>/
-
 const BASE_PATH = app.isPackaged
   ? app.getPath('userData')
   : process.cwd();
@@ -19,6 +15,7 @@ const CONFIG_FILE = path.join(BASE_PATH, 'config.json');
 const DATA_FILE = path.join(BASE_PATH, 'queue-data.json');
 const STATS_FILE = path.join(BASE_PATH, 'stats-data.json');
 const LOOP_MESSAGES_FILE = path.join(BASE_PATH, 'loop-messages.json');
+const CUSTOM_COMMANDS_FILE = path.join(BASE_PATH, 'custom-commands.json');
 
 /* ========= CONFIG ========= */
 
@@ -40,13 +37,11 @@ function saveConfig(cfg) {
 /* ========= BOT TOKEN ========= */
 
 function loadBotToken() {
-  // DEV
   const devPath = path.join(process.cwd(), 'bot-token.txt');
   if (!app.isPackaged && fs.existsSync(devPath)) {
     return fs.readFileSync(devPath, 'utf8').trim();
   }
 
-  // PROD (resources)
   const prodPath = path.join(process.resourcesPath, 'bot-token.txt');
   if (app.isPackaged && fs.existsSync(prodPath)) {
     return fs.readFileSync(prodPath, 'utf8').trim();
@@ -62,6 +57,7 @@ let queue = [];
 let current = null;
 let stats = {};
 let loopMessages = [];
+let customCommands = [];
 let twitchClient = null;
 let wss = null;
 let botChannel = null;
@@ -86,6 +82,13 @@ function loadData() {
       loopMessages = data;
     }
   }
+
+  if (fs.existsSync(CUSTOM_COMMANDS_FILE)) {
+    const data = JSON.parse(fs.readFileSync(CUSTOM_COMMANDS_FILE, 'utf8'));
+    if (Array.isArray(data)) {
+      customCommands = data;
+    }
+  }
 }
 
 function saveQueue() {
@@ -98,6 +101,10 @@ function saveStats() {
 
 function saveLoopMessages() {
   fs.writeFileSync(LOOP_MESSAGES_FILE, JSON.stringify(loopMessages, null, 2));
+}
+
+function saveCustomCommands() {
+  fs.writeFileSync(CUSTOM_COMMANDS_FILE, JSON.stringify(customCommands, null, 2));
 }
 
 function getLoopMessagesForAdmin() {
@@ -116,6 +123,14 @@ function getLoopMessagesForAdmin() {
       nextSendInSeconds: Math.ceil(nextSendInMs / 1000)
     };
   });
+}
+
+function getCustomCommandsForAdmin() {
+  return customCommands.map(item => ({
+    id: item.id,
+    name: item.name,
+    response: item.response
+  }));
 }
 
 function runLoopMessages() {
@@ -145,7 +160,6 @@ function runLoopMessages() {
 
 function startLoopScheduler() {
   if (loopScheduler) return;
-
   loopScheduler = setInterval(runLoopMessages, 5000);
 }
 
@@ -160,7 +174,8 @@ function broadcast() {
     current,
     next: queue[0] || null,
     queue,
-    loopMessages: getLoopMessagesForAdmin()
+    loopMessages: getLoopMessagesForAdmin(),
+    customCommands: getCustomCommandsForAdmin()
   });
 
   wss.clients.forEach(client => {
@@ -179,7 +194,6 @@ function startServer() {
   const config = loadConfig();
   const appExpress = express();
 
-  // 🔑 Overlay-polku oikein
   const overlayPath = app.isPackaged
     ? path.join(process.resourcesPath, 'overlay')
     : path.join(__dirname, 'overlay');
@@ -190,17 +204,14 @@ function startServer() {
   appExpress.use(express.json());
   appExpress.use(express.static(overlayPath));
 
-  // --- ADMIN ---
   appExpress.get('/admin', (req, res) => {
     res.sendFile(path.join(overlayPath, 'admin.html'));
   });
 
-  // --- SETUP ---
   appExpress.get('/setup.html', (req, res) => {
     res.sendFile(path.join(overlayPath, 'setup.html'));
   });
 
-  // --- SETUP SAVE ---
   appExpress.post('/setup/save', (req, res) => {
     const channel = String(req.body.channel || '').trim().toLowerCase();
 
@@ -328,6 +339,45 @@ function startServer() {
           if (loopMessages.length !== before) saveLoopMessages();
         }
 
+        if (data.action === 'command_add') {
+          const name = String(data.payload?.name || '').trim().toLowerCase();
+          const response = String(data.payload?.response || '').trim();
+
+          if (!name.startsWith('!') || !response) return;
+          if (customCommands.some(item => item.name === name)) return;
+
+          customCommands.push({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            name,
+            response
+          });
+          saveCustomCommands();
+        }
+
+        if (data.action === 'command_update') {
+          const id = String(data.payload?.id || '');
+          const name = String(data.payload?.name || '').trim().toLowerCase();
+          const response = String(data.payload?.response || '').trim();
+
+          if (!id || !name.startsWith('!') || !response) return;
+          const duplicate = customCommands.find(item => item.name === name && item.id !== id);
+          if (duplicate) return;
+
+          const target = customCommands.find(item => item.id === id);
+          if (!target) return;
+
+          target.name = name;
+          target.response = response;
+          saveCustomCommands();
+        }
+
+        if (data.action === 'command_delete') {
+          const id = String(data.payload || '');
+          const before = customCommands.length;
+          customCommands = customCommands.filter(item => item.id !== id);
+          if (customCommands.length !== before) saveCustomCommands();
+        }
+
         broadcast();
       } catch (err) {
         console.error('WebSocket-virhe:', err);
@@ -372,21 +422,24 @@ function startBot() {
   twitchClient.on('message', (channel, tags, message, self) => {
     if (self || !message.startsWith('!')) return;
 
+    const normalizedMessage = message.trim().toLowerCase();
     const user = tags['display-name'];
     const isMod = tags.mod || tags.badges?.broadcaster;
 
-    if (message === '!jonoon') {
+    if (normalizedMessage === '!jonoon') {
       if (queue.includes(user) || user === current) return;
       queue.push(user);
       broadcast();
+      return;
     }
 
-    if (message === '!seuraava' && isMod) {
+    if (normalizedMessage === '!seuraava' && isMod) {
       current = queue.shift() || null;
       broadcast();
+      return;
     }
 
-    if (message === '!stats') {
+    if (normalizedMessage === '!stats') {
       const d = stats[user];
       if (!d) return;
 
@@ -395,11 +448,15 @@ function startBot() {
       twitchClient.say(channel,
         `📊 ${user} | W/L ${d.wins}-${d.losses} | Legs ${d.legsFor}-${d.legsAgainst} | Avg ${avg}`
       );
+      return;
+    }
+
+    const customCommand = customCommands.find(item => item.name === normalizedMessage);
+    if (customCommand) {
+      twitchClient.say(channel, customCommand.response);
     }
   });
 }
-
-/* ========= EXPORT ========= */
 
 module.exports = {
   startServer,
