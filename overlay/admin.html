@@ -14,9 +14,7 @@
     --muted: #9aa0b4;
   }
 
-  * {
-    box-sizing: border-box;
-  }
+  * { box-sizing: border-box; }
 
   body {
     margin: 0;
@@ -26,16 +24,8 @@
     color: var(--text);
   }
 
-  h1 {
-    margin: 0 0 12px 0;
-    font-size: 22px;
-  }
-
-  h2 {
-    margin: 0 0 12px 0;
-    font-size: 16px;
-    color: var(--muted);
-  }
+  h1 { margin: 0 0 12px 0; font-size: 22px; }
+  h2 { margin: 0 0 12px 0; font-size: 16px; color: var(--muted); }
 
   .header {
     background: var(--card);
@@ -44,16 +34,8 @@
     margin-bottom: 20px;
   }
 
-  .status {
-    display: flex;
-    gap: 24px;
-    margin-top: 8px;
-  }
-
-  .status span {
-    font-size: 13px;
-    color: var(--muted);
-  }
+  .status { display: flex; gap: 24px; margin-top: 8px; }
+  .status span { font-size: 13px; color: var(--muted); }
 
   .cards {
     display: grid;
@@ -68,6 +50,27 @@
     padding: 16px;
   }
 
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .tab-btn {
+    background: #212431;
+    color: var(--muted);
+    border: 1px solid #2a2c36;
+  }
+
+  .tab-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
   button {
     background: var(--accent);
     border: none;
@@ -78,19 +81,10 @@
     cursor: pointer;
   }
 
-  button.danger {
-    background: var(--danger);
-  }
+  button.danger { background: var(--danger); }
+  button.full { width: 100%; }
 
-  button.full {
-    width: 100%;
-  }
-
-  ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
+  ul { list-style: none; padding: 0; margin: 0; }
 
   li {
     display: flex;
@@ -99,9 +93,7 @@
     border-bottom: 1px solid #2a2c36;
   }
 
-  li:last-child {
-    border-bottom: none;
-  }
+  li:last-child { border-bottom: none; }
 
   .remove-btn {
     background: none;
@@ -128,9 +120,7 @@
     font-size: 14px;
   }
 
-  input::placeholder {
-    color: var(--muted);
-  }
+  input::placeholder { color: var(--muted); }
 
   .loop-create {
     display: grid;
@@ -148,9 +138,7 @@
     border-bottom: 1px solid #2a2c36;
   }
 
-  .loop-item:last-child {
-    border-bottom: none;
-  }
+  .loop-item:last-child { border-bottom: none; }
 
   .loop-meta {
     grid-column: 1 / -1;
@@ -161,7 +149,6 @@
 </head>
 
 <body>
-
   <div class="header">
     <h1>🎮 Jonobotti – Hallinta</h1>
     <div class="status">
@@ -176,41 +163,60 @@
     </div>
   </div>
 
-  <div class="cards">
-    <button class="full" onclick="send('next')">▶️ Seuraava</button>
-    <button class="full danger" onclick="send('clear')">🧹 Tyhjennä jono</button>
+  <div class="tabs">
+    <button id="tabQueueBtn" class="tab-btn active" onclick="switchTab('queue')">📋 Jono</button>
+    <button id="tabLoopBtn" class="tab-btn" onclick="switchTab('loop')">🔁 Loop-viestit</button>
   </div>
 
-  <div class="card">
-    <h2>📋 Jono</h2>
-    <ul id="queue"></ul>
-  </div>
-
-  <div class="card" style="margin-top:20px;">
-    <h2>🔁 Loop-viestit</h2>
-
-    <div class="loop-create">
-      <input id="loopMessage" type="text" placeholder="Viesti chattiin">
-      <input id="loopInterval" type="number" min="1" step="1" placeholder="Aika (min)">
-      <button onclick="createLoopMessage()">Lisää</button>
+  <section id="tabQueue" class="tab-content active">
+    <div class="cards">
+      <button class="full" onclick="send('next')">▶️ Seuraava</button>
+      <button class="full danger" onclick="send('clear')">🧹 Tyhjennä jono</button>
     </div>
 
-    <div id="loopList"></div>
-  </div>
-
-  <div class="card" style="margin-top:20px;">
-    <h2>🏁 Pelin tulos</h2>
-    <div class="result-grid">
-      <input id="legsFor" type="number" placeholder="Pelaajan leg">
-      <input id="legsAgainst" type="number" placeholder="Juontajan leg">
-      <input id="avg" type="number" step="0.01" placeholder="Avg">
-      <button onclick="submitResult()">💾</button>
+    <div class="card">
+      <h2>📋 Jono</h2>
+      <ul id="queue"></ul>
     </div>
-  </div>
+
+    <div class="card" style="margin-top:20px;">
+      <h2>🏁 Pelin tulos</h2>
+      <div class="result-grid">
+        <input id="legsFor" type="number" placeholder="Pelaajan leg">
+        <input id="legsAgainst" type="number" placeholder="Juontajan leg">
+        <input id="avg" type="number" step="0.01" placeholder="Avg">
+        <button onclick="submitResult()">💾</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="tabLoop" class="tab-content">
+    <div class="card">
+      <h2>🔁 Loop-viestit</h2>
+
+      <div class="loop-create">
+        <input id="loopMessage" type="text" placeholder="Viesti chattiin">
+        <input id="loopInterval" type="number" min="1" step="1" placeholder="Aika (min)">
+        <button onclick="createLoopMessage()">Lisää</button>
+      </div>
+
+      <div id="loopList"></div>
+    </div>
+  </section>
 
 <script>
   const ws = new WebSocket(`ws://${location.host}`);
   let latestLoopMessages = [];
+
+  function switchTab(tab) {
+    const isQueue = tab === 'queue';
+
+    document.getElementById('tabQueue').classList.toggle('active', isQueue);
+    document.getElementById('tabLoop').classList.toggle('active', !isQueue);
+
+    document.getElementById('tabQueueBtn').classList.toggle('active', isQueue);
+    document.getElementById('tabLoopBtn').classList.toggle('active', !isQueue);
+  }
 
   function send(action, payload = null) {
     ws.send(JSON.stringify({ action, payload }));
