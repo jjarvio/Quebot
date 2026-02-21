@@ -172,6 +172,7 @@
     <button id="tabQueueBtn" class="tab-btn active" onclick="switchTab('queue')">📋 Jono</button>
     <button id="tabLoopBtn" class="tab-btn" onclick="switchTab('loop')">🔁 Loop-viestit</button>
     <button id="tabCommandBtn" class="tab-btn" onclick="switchTab('commands')">⚡ Custom Commands</button>
+    <button id="tabSettingsBtn" class="tab-btn" onclick="switchTab('settings')">⚙️ Asetukset</button>
   </div>
 
   <section id="tabQueue" class="tab-content active">
@@ -224,10 +225,30 @@
     </div>
   </section>
 
+  <section id="tabSettings" class="tab-content">
+    <div class="card">
+      <h2>⚙️ Asetukset</h2>
+
+      <div class="command-create">
+        <input id="settingsChannel" type="text" placeholder="Twitch-kanava (ilman @)">
+        <input id="settingsBotStatus" type="text" placeholder="Botin tila" disabled>
+        <button onclick="saveSettings()">Tallenna</button>
+      </div>
+
+      <div style="color:#9aa0b4;font-size:13px;line-height:1.5;">
+        <strong>Moikkabot adminiksi (moderaattoriksi):</strong><br>
+        1) Avaa oma Twitch-kanavasi chat.<br>
+        2) Kirjoita: <code>/mod SINUN_BOTIN_NIMI</code><br>
+        3) Varmista, että botin käyttäjänimi vastaa tätä nimeä botin asetuksissa/tokenissa.
+      </div>
+    </div>
+  </section>
+
 <script>
   const ws = new WebSocket(`ws://${location.host}`);
   let latestLoopMessages = [];
   let latestCustomCommands = [];
+  let latestSettings = null;
 
   function switchTab(tab) {
     const isQueue = tab === 'queue';
@@ -235,11 +256,16 @@
 
     document.getElementById('tabQueue').classList.toggle('active', isQueue);
     document.getElementById('tabLoop').classList.toggle('active', isLoop);
-    document.getElementById('tabCommands').classList.toggle('active', tab === 'commands');
+    const isCommands = tab === 'commands';
+    const isSettings = tab === 'settings';
+
+    document.getElementById('tabCommands').classList.toggle('active', isCommands);
+    document.getElementById('tabSettings').classList.toggle('active', isSettings);
 
     document.getElementById('tabQueueBtn').classList.toggle('active', isQueue);
     document.getElementById('tabLoopBtn').classList.toggle('active', isLoop);
-    document.getElementById('tabCommandBtn').classList.toggle('active', tab === 'commands');
+    document.getElementById('tabCommandBtn').classList.toggle('active', isCommands);
+    document.getElementById('tabSettingsBtn').classList.toggle('active', isSettings);
   }
 
   function send(action, payload = null) {
@@ -407,6 +433,27 @@
     });
   }
 
+
+  function saveSettings() {
+    const channel = document.getElementById('settingsChannel').value.trim().toLowerCase();
+
+    if (!channel) {
+      alert('Anna Twitch-kanavan nimi');
+      return;
+    }
+
+    send('settings_save', { channel });
+  }
+
+  function renderSettings() {
+    if (!latestSettings) return;
+
+    document.getElementById('settingsChannel').value = latestSettings.channel || '';
+    document.getElementById('settingsBotStatus').value = latestSettings.botConnected
+      ? 'Yhdistetty'
+      : 'Ei yhdistetty';
+  }
+
   ws.onmessage = event => {
     const data = JSON.parse(event.data);
 
@@ -431,8 +478,10 @@
 
     latestLoopMessages = data.loopMessages || [];
     latestCustomCommands = data.customCommands || [];
+    latestSettings = data.settings || null;
     renderLoopMessages();
     renderCommands();
+    renderSettings();
   };
 </script>
 

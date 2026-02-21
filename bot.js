@@ -133,6 +133,15 @@ function getCustomCommandsForAdmin() {
   }));
 }
 
+function getAdminSettings() {
+  const cfg = loadConfig();
+  return {
+    channel: cfg.channel || '',
+    setupCompleted: Boolean(cfg.setupCompleted),
+    botConnected: Boolean(twitchClient)
+  };
+}
+
 function runLoopMessages() {
   if (!twitchClient || !botChannel) return;
 
@@ -175,7 +184,8 @@ function broadcast() {
     next: queue[0] || null,
     queue,
     loopMessages: getLoopMessagesForAdmin(),
-    customCommands: getCustomCommandsForAdmin()
+    customCommands: getCustomCommandsForAdmin(),
+    settings: getAdminSettings()
   });
 
   wss.clients.forEach(client => {
@@ -392,6 +402,22 @@ function startServer() {
           if (customCommands.length !== before) saveCustomCommands();
         }
 
+        if (data.action === 'settings_save') {
+          const channel = String(data.payload?.channel || '').trim().toLowerCase();
+          if (!channel) return;
+
+          const cfg = loadConfig();
+          const hasChanged = cfg.channel !== channel || !cfg.setupCompleted;
+          cfg.channel = channel;
+          cfg.setupCompleted = true;
+          saveConfig(cfg);
+
+          if (hasChanged) {
+            stopBot();
+            startBot();
+          }
+        }
+
         broadcast();
       } catch (err) {
         console.error('WebSocket-virhe:', err);
@@ -404,10 +430,23 @@ function startServer() {
 
 /* ========= TWITCH BOT ========= */
 
+function stopBot() {
+  if (!twitchClient) return;
+
+  try {
+    twitchClient.disconnect();
+  } catch (err) {
+    console.error('⚠️ Botin irrotus epäonnistui:', err);
+  }
+
+  twitchClient = null;
+  botChannel = null;
+}
+
 function startBot() {
   const config = loadConfig();
 
-  if (!config.setupCompleted) {
+  if (!config.setupCompleted || !config.channel) {
     console.log('⚠️ Setup ei valmis');
     return;
   }
@@ -432,6 +471,16 @@ function startBot() {
 
   twitchClient.connect();
   console.log('🤖 Botti yhdistetty kanavalle:', CHANNEL);
+
+  twitchClient.on('connected', () => {
+    broadcast();
+  });
+
+  twitchClient.on('disconnected', () => {
+    twitchClient = null;
+    botChannel = null;
+    broadcast();
+  });
 
   twitchClient.on('message', (channel, tags, message, self) => {
     if (self || !message.startsWith('!')) return;
@@ -519,5 +568,6 @@ function startBot() {
 
 module.exports = {
   startServer,
-  startBot
+  startBot,
+  stopBot
 };
