@@ -150,6 +150,47 @@
     color: var(--muted);
     font-size: 12px;
   }
+
+  .setup-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.72);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+  }
+
+  .setup-modal-backdrop.show {
+    display: flex;
+  }
+
+  .setup-modal {
+    width: min(560px, 100%);
+    background: #171923;
+    border: 1px solid #303447;
+    border-radius: 14px;
+    padding: 18px;
+  }
+
+  .setup-modal h3 {
+    margin: 0 0 10px 0;
+    font-size: 18px;
+  }
+
+  .setup-modal p {
+    margin: 0 0 12px 0;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .setup-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
 </style>
 </head>
 
@@ -164,6 +205,18 @@
       <div>
         <span>Seuraavana</span><br>
         <strong id="next">-</strong>
+      </div>
+    </div>
+  </div>
+
+  <div id="setupModal" class="setup-modal-backdrop">
+    <div class="setup-modal">
+      <h3>👋 Tervetuloa käyttämään moikkabottia</h3>
+      <p>Ennen käyttöä käy asettamassa Twitch-kanava <strong>Asetukset</strong>-välilehdellä.
+      Kun tallennat asetukset, botti yrittää yhdistää automaattisesti ilman sovelluksen uudelleenkäynnistystä.</p>
+      <div class="setup-actions">
+        <button class="danger" onclick="dismissSetupModal()">Myöhemmin</button>
+        <button onclick="openSettingsFromModal()">Avaa asetukset</button>
       </div>
     </div>
   </div>
@@ -238,7 +291,7 @@
       <div style="color:#9aa0b4;font-size:13px;line-height:1.5;">
         <strong>Moikkabot adminiksi (moderaattoriksi):</strong><br>
         1) Avaa oma Twitch-kanavasi chat.<br>
-        2) Kirjoita: <code>/mod SINUN_BOTIN_NIMI</code><br>
+        2) Kirjoita: <code>/mod moikkabot</code><br>
         3) Varmista, että botin käyttäjänimi vastaa tätä nimeä botin asetuksissa/tokenissa.
       </div>
     </div>
@@ -249,6 +302,7 @@
   let latestLoopMessages = [];
   let latestCustomCommands = [];
   let latestSettings = null;
+  let setupPromptDismissed = false;
 
   function switchTab(tab) {
     const isQueue = tab === 'queue';
@@ -454,6 +508,30 @@
       : 'Ei yhdistetty';
   }
 
+
+  function openSettingsFromModal() {
+    switchTab('settings');
+    dismissSetupModal();
+  }
+
+  function dismissSetupModal() {
+    setupPromptDismissed = true;
+    document.getElementById('setupModal').classList.remove('show');
+  }
+
+  function maybeShowSetupModal() {
+    if (!latestSettings || latestSettings.setupCompleted) {
+      setupPromptDismissed = false;
+      document.getElementById('setupModal').classList.remove('show');
+      return;
+    }
+
+    if (setupPromptDismissed) return;
+
+    const modal = document.getElementById('setupModal');
+    modal.classList.add('show');
+  }
+
   ws.onmessage = event => {
     const data = JSON.parse(event.data);
 
@@ -482,6 +560,7 @@
     renderLoopMessages();
     renderCommands();
     renderSettings();
+    maybeShowSetupModal();
   };
 </script>
 

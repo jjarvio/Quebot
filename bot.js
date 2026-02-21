@@ -456,7 +456,7 @@ function startBot() {
     return;
   }
 
-  const BOT_USERNAME = 'SINUN_BOTIN_NIMI';
+  const BOT_USERNAME = 'moikkabot';
   const OAUTH_TOKEN = loadBotToken();
   const CHANNEL = config.channel.toLowerCase();
   botChannel = `#${CHANNEL}`;
