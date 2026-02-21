@@ -191,6 +191,30 @@
     justify-content: flex-end;
   }
 
+  .info-card p {
+    color: var(--muted);
+    line-height: 1.6;
+    margin: 8px 0;
+  }
+
+  .info-card h3 {
+    margin: 18px 0 8px;
+    font-size: 15px;
+  }
+
+  .info-card ul {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    list-style: disc;
+    color: var(--muted);
+  }
+
+  .info-card li {
+    display: list-item;
+    border: 0;
+    padding: 4px 0;
+  }
+
 </style>
 </head>
 
@@ -226,6 +250,7 @@
     <button id="tabLoopBtn" class="tab-btn" onclick="switchTab('loop')">🔁 Loop-viestit</button>
     <button id="tabCommandBtn" class="tab-btn" onclick="switchTab('commands')">⚡ Custom Commands</button>
     <button id="tabSettingsBtn" class="tab-btn" onclick="switchTab('settings')">⚙️ Asetukset</button>
+    <button id="tabInfoBtn" class="tab-btn" onclick="switchTab('info')">ℹ️ Info</button>
   </div>
 
   <section id="tabQueue" class="tab-content active">
@@ -297,6 +322,44 @@
     </div>
   </section>
 
+  <section id="tabInfo" class="tab-content">
+    <div class="card info-card">
+      <h2>ℹ️ Moikkabot – Ohjeet ja yleiskuva</h2>
+      <p>Moikkabot on Twitch-jonobotti, jossa on admin-paneeli streamaajalle: jonon hallinta, loop-viestit, custom-komennot ja asetukset.</p>
+
+      <h3>1) Käyttöönotto</h3>
+      <ul>
+        <li>Avaa <strong>Asetukset</strong>-välilehti ja syötä Twitch-kanavasi nimi (ilman @-merkkiä).</li>
+        <li>Tallenna asetukset. Botti yrittää yhdistää kanavalle automaattisesti.</li>
+        <li>Lisää botti moderaattoriksi komennolla: <code>/mod moikkabot</code>.</li>
+      </ul>
+
+      <h3>2) Chat-komennot katsojille</h3>
+      <ul>
+        <li><code>!jonoon</code> – liity jonoon (botti kertoo sijan).</li>
+        <li><code>!peru</code> – peru jonoon liittyminen.</li>
+        <li><code>!jono</code> – näytä koko jono chatissa.</li>
+        <li><code>!stats</code> – näytä pelaajan tilastot (jos dataa on).</li>
+      </ul>
+
+      <h3>3) Admin-paneelin välilehdet</h3>
+      <ul>
+        <li><strong>Jono:</strong> seuraava pelaaja, jonon tyhjennys, pelituloksen kirjaus.</li>
+        <li><strong>Loop-viestit:</strong> ajastetut automaattiviestit Twitch-chattiin.</li>
+        <li><strong>Custom Commands:</strong> omat chat-komennot ilman koodimuutoksia.</li>
+        <li><strong>Asetukset:</strong> kanavan vaihto ja botin tilan tarkistus.</li>
+      </ul>
+
+      <h3>4) OBS Overlay asennus</h3>
+      <ul>
+        <li>OBS: Lisää lähde <strong>Browser Source</strong>.</li>
+        <li>URL: <code>http://127.0.0.1:3000/</code> (tai oma portti jos olet vaihtanut).</li>
+        <li>Suositus koko: esim. 450x250 (säädä layoutin mukaan).</li>
+        <li>Jos overlay ei päivity restartin jälkeen, varmista että OBS käyttää samaa URL-osoitetta.</li>
+      </ul>
+    </div>
+  </section>
+
 <script>
   const ws = new WebSocket(`ws://${location.host}`);
   let latestLoopMessages = [];
@@ -312,14 +375,17 @@
     document.getElementById('tabLoop').classList.toggle('active', isLoop);
     const isCommands = tab === 'commands';
     const isSettings = tab === 'settings';
+    const isInfo = tab === 'info';
 
     document.getElementById('tabCommands').classList.toggle('active', isCommands);
     document.getElementById('tabSettings').classList.toggle('active', isSettings);
+    document.getElementById('tabInfo').classList.toggle('active', isInfo);
 
     document.getElementById('tabQueueBtn').classList.toggle('active', isQueue);
     document.getElementById('tabLoopBtn').classList.toggle('active', isLoop);
     document.getElementById('tabCommandBtn').classList.toggle('active', isCommands);
     document.getElementById('tabSettingsBtn').classList.toggle('active', isSettings);
+    document.getElementById('tabInfoBtn').classList.toggle('active', isInfo);
   }
 
   function send(action, payload = null) {
