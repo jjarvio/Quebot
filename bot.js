@@ -202,7 +202,21 @@ function startServer() {
   console.log('💾 Data-polku:', BASE_PATH);
 
   appExpress.use(express.json());
-  appExpress.use(express.static(overlayPath));
+
+  appExpress.use((req, res, next) => {
+    if (req.method === 'GET') {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Surrogate-Control', 'no-store');
+    }
+    next();
+  });
+
+  appExpress.use(express.static(overlayPath, {
+    etag: false,
+    lastModified: false
+  }));
 
   appExpress.get('/admin', (req, res) => {
     res.sendFile(path.join(overlayPath, 'admin.html'));
