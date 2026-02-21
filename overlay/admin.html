@@ -14,9 +14,7 @@
     --muted: #9aa0b4;
   }
 
-  * {
-    box-sizing: border-box;
-  }
+  * { box-sizing: border-box; }
 
   body {
     margin: 0;
@@ -26,16 +24,8 @@
     color: var(--text);
   }
 
-  h1 {
-    margin: 0 0 12px 0;
-    font-size: 22px;
-  }
-
-  h2 {
-    margin: 0 0 12px 0;
-    font-size: 16px;
-    color: var(--muted);
-  }
+  h1 { margin: 0 0 12px 0; font-size: 22px; }
+  h2 { margin: 0 0 12px 0; font-size: 16px; color: var(--muted); }
 
   .header {
     background: var(--card);
@@ -44,16 +34,8 @@
     margin-bottom: 20px;
   }
 
-  .status {
-    display: flex;
-    gap: 24px;
-    margin-top: 8px;
-  }
-
-  .status span {
-    font-size: 13px;
-    color: var(--muted);
-  }
+  .status { display: flex; gap: 24px; margin-top: 8px; }
+  .status span { font-size: 13px; color: var(--muted); }
 
   .cards {
     display: grid;
@@ -68,6 +50,28 @@
     padding: 16px;
   }
 
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .tab-btn {
+    background: #212431;
+    color: var(--muted);
+    border: 1px solid #2a2c36;
+  }
+
+  .tab-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
   button {
     background: var(--accent);
     border: none;
@@ -78,19 +82,10 @@
     cursor: pointer;
   }
 
-  button.danger {
-    background: var(--danger);
-  }
+  button.danger { background: var(--danger); }
+  button.full { width: 100%; }
 
-  button.full {
-    width: 100%;
-  }
-
-  ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
+  ul { list-style: none; padding: 0; margin: 0; }
 
   li {
     display: flex;
@@ -99,9 +94,7 @@
     border-bottom: 1px solid #2a2c36;
   }
 
-  li:last-child {
-    border-bottom: none;
-  }
+  li:last-child { border-bottom: none; }
 
   .remove-btn {
     background: none;
@@ -109,6 +102,7 @@
     border: none;
     cursor: pointer;
     font-size: 14px;
+    padding: 0;
   }
 
   .result-grid {
@@ -127,15 +121,104 @@
     font-size: 14px;
   }
 
-  input::placeholder {
+  input::placeholder { color: var(--muted); }
+
+  .loop-create, .command-create {
+    display: grid;
+    grid-template-columns: 1fr 160px auto;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .loop-item, .command-item {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) 120px auto auto auto;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #2a2c36;
+  }
+
+  .command-item {
+    grid-template-columns: 180px minmax(180px, 1fr) auto auto;
+  }
+
+  .loop-item:last-child, .command-item:last-child { border-bottom: none; }
+
+  .loop-meta {
+    grid-column: 1 / -1;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .setup-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.72);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+  }
+
+  .setup-modal-backdrop.show {
+    display: flex;
+  }
+
+  .setup-modal {
+    width: min(560px, 100%);
+    background: #171923;
+    border: 1px solid #303447;
+    border-radius: 14px;
+    padding: 18px;
+  }
+
+  .setup-modal h3 {
+    margin: 0 0 10px 0;
+    font-size: 18px;
+  }
+
+  .setup-modal p {
+    margin: 0 0 12px 0;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .setup-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  .info-card p {
+    color: var(--muted);
+    line-height: 1.6;
+    margin: 8px 0;
+  }
+
+  .info-card h3 {
+    margin: 18px 0 8px;
+    font-size: 15px;
+  }
+
+  .info-card ul {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    list-style: disc;
     color: var(--muted);
   }
+
+  .info-card li {
+    display: list-item;
+    border: 0;
+    padding: 4px 0;
+  }
+
 </style>
 </head>
 
 <body>
-
-  <!-- HEADER -->
   <div class="header">
     <h1>🎮 Jonobotti – Hallinta</h1>
     <div class="status">
@@ -150,31 +233,160 @@
     </div>
   </div>
 
-  <!-- ACTION BUTTONS -->
-  <div class="cards">
-    <button class="full" onclick="send('next')">▶️ Seuraava</button>
-    <button class="full danger" onclick="send('clear')">🧹 Tyhjennä jono</button>
-  </div>
-
-  <!-- QUEUE -->
-  <div class="card">
-    <h2>📋 Jono</h2>
-    <ul id="queue"></ul>
-  </div>
-
-  <!-- RESULT -->
-  <div class="card" style="margin-top:20px;">
-    <h2>🏁 Pelin tulos</h2>
-    <div class="result-grid">
-      <input id="legsFor" type="number" placeholder="Pelaajan leg">
-      <input id="legsAgainst" type="number" placeholder="Juontajan leg">
-      <input id="avg" type="number" step="0.01" placeholder="Avg">
-      <button onclick="submitResult()">💾</button>
+  <div id="setupModal" class="setup-modal-backdrop">
+    <div class="setup-modal">
+      <h3>👋 Tervetuloa käyttämään moikkabottia</h3>
+      <p>Ennen käyttöä käy asettamassa Twitch-kanava <strong>Asetukset</strong>-välilehdellä.
+      Kun tallennat asetukset, botti yrittää yhdistää automaattisesti ilman sovelluksen uudelleenkäynnistystä.</p>
+      <div class="setup-actions">
+        <button class="danger" onclick="dismissSetupModal()">Myöhemmin</button>
+        <button onclick="openSettingsFromModal()">Avaa asetukset</button>
+      </div>
     </div>
   </div>
 
+  <div class="tabs">
+    <button id="tabQueueBtn" class="tab-btn active" onclick="switchTab('queue')">📋 Jono</button>
+    <button id="tabLoopBtn" class="tab-btn" onclick="switchTab('loop')">🔁 Loop-viestit</button>
+    <button id="tabCommandBtn" class="tab-btn" onclick="switchTab('commands')">⚡ Custom Commands</button>
+    <button id="tabSettingsBtn" class="tab-btn" onclick="switchTab('settings')">⚙️ Asetukset</button>
+    <button id="tabInfoBtn" class="tab-btn" onclick="switchTab('info')">ℹ️ Info</button>
+  </div>
+
+  <section id="tabQueue" class="tab-content active">
+    <div class="cards">
+      <button class="full" onclick="send('next')">▶️ Seuraava</button>
+      <button class="full danger" onclick="send('clear')">🧹 Tyhjennä jono</button>
+    </div>
+
+    <div class="card">
+      <h2>📋 Jono</h2>
+      <ul id="queue"></ul>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+      <h2>🏁 Pelin tulos</h2>
+      <div class="result-grid">
+        <input id="legsFor" type="number" placeholder="Pelaajan leg">
+        <input id="legsAgainst" type="number" placeholder="Juontajan leg">
+        <input id="avg" type="number" step="0.01" placeholder="Avg">
+        <button onclick="submitResult()">💾</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="tabLoop" class="tab-content">
+    <div class="card">
+      <h2>🔁 Loop-viestit</h2>
+
+      <div class="loop-create">
+        <input id="loopMessage" type="text" placeholder="Viesti chattiin">
+        <input id="loopInterval" type="number" min="1" step="1" placeholder="Aika (min)">
+        <button onclick="createLoopMessage()">Lisää</button>
+      </div>
+
+      <div id="loopList"></div>
+    </div>
+  </section>
+
+  <section id="tabCommands" class="tab-content">
+    <div class="card">
+      <h2>⚡ Custom Commands</h2>
+
+      <div class="command-create">
+        <input id="commandName" type="text" placeholder="Komento (esim. !dc)">
+        <input id="commandResponse" type="text" placeholder="Vastaus chattiin">
+        <button onclick="createCommand()">Lisää</button>
+      </div>
+
+      <div id="commandList"></div>
+    </div>
+  </section>
+
+  <section id="tabSettings" class="tab-content">
+    <div class="card">
+      <h2>⚙️ Asetukset</h2>
+
+      <div class="command-create">
+        <input id="settingsChannel" type="text" placeholder="Twitch-kanava (ilman @)">
+        <input id="settingsBotStatus" type="text" placeholder="Botin tila" disabled>
+        <button onclick="saveSettings()">Tallenna</button>
+      </div>
+
+      <div style="color:#9aa0b4;font-size:13px;line-height:1.5;">
+        <strong>Moikkabot adminiksi (moderaattoriksi):</strong><br>
+        1) Avaa oma Twitch-kanavasi chat.<br>
+        2) Kirjoita: <code>/mod moikkabot</code><br>
+        3) Varmista, että botin käyttäjänimi vastaa tätä nimeä botin asetuksissa/tokenissa.
+      </div>
+    </div>
+  </section>
+
+  <section id="tabInfo" class="tab-content">
+    <div class="card info-card">
+      <h2>ℹ️ Moikkabot – Ohjeet ja yleiskuva</h2>
+      <p>Moikkabot on Twitch-jonobotti, jossa on admin-paneeli streamaajalle: jonon hallinta, loop-viestit, custom-komennot ja asetukset.</p>
+
+      <h3>1) Käyttöönotto</h3>
+      <ul>
+        <li>Avaa <strong>Asetukset</strong>-välilehti ja syötä Twitch-kanavasi nimi (ilman @-merkkiä).</li>
+        <li>Tallenna asetukset. Botti yrittää yhdistää kanavalle automaattisesti.</li>
+        <li>Lisää botti moderaattoriksi komennolla: <code>/mod moikkabot</code>.</li>
+      </ul>
+
+      <h3>2) Chat-komennot katsojille</h3>
+      <ul>
+        <li><code>!jonoon</code> – liity jonoon (botti kertoo sijan).</li>
+        <li><code>!peru</code> – peru jonoon liittyminen.</li>
+        <li><code>!jono</code> – näytä koko jono chatissa.</li>
+        <li><code>!stats</code> – näytä pelaajan tilastot (jos dataa on).</li>
+      </ul>
+
+      <h3>3) Admin-paneelin välilehdet</h3>
+      <ul>
+        <li><strong>Jono:</strong> seuraava pelaaja, jonon tyhjennys, pelituloksen kirjaus.</li>
+        <li><strong>Loop-viestit:</strong> ajastetut automaattiviestit Twitch-chattiin.</li>
+        <li><strong>Custom Commands:</strong> omat chat-komennot ilman koodimuutoksia.</li>
+        <li><strong>Asetukset:</strong> kanavan vaihto ja botin tilan tarkistus.</li>
+      </ul>
+
+      <h3>4) OBS Overlay asennus</h3>
+      <ul>
+        <li>OBS: Lisää lähde <strong>Browser Source</strong>.</li>
+        <li>URL: <code>http://127.0.0.1:3000/</code> (tai oma portti jos olet vaihtanut).</li>
+        <li>Suositus koko: esim. 450x250 (säädä layoutin mukaan).</li>
+        <li>Jos overlay ei päivity restartin jälkeen, varmista että OBS käyttää samaa URL-osoitetta.</li>
+      </ul>
+    </div>
+  </section>
+
 <script>
   const ws = new WebSocket(`ws://${location.host}`);
+  let latestLoopMessages = [];
+  let latestCustomCommands = [];
+  let latestSettings = null;
+  let setupPromptDismissed = false;
+
+  function switchTab(tab) {
+    const isQueue = tab === 'queue';
+    const isLoop = tab === 'loop';
+
+    document.getElementById('tabQueue').classList.toggle('active', isQueue);
+    document.getElementById('tabLoop').classList.toggle('active', isLoop);
+    const isCommands = tab === 'commands';
+    const isSettings = tab === 'settings';
+    const isInfo = tab === 'info';
+
+    document.getElementById('tabCommands').classList.toggle('active', isCommands);
+    document.getElementById('tabSettings').classList.toggle('active', isSettings);
+    document.getElementById('tabInfo').classList.toggle('active', isInfo);
+
+    document.getElementById('tabQueueBtn').classList.toggle('active', isQueue);
+    document.getElementById('tabLoopBtn').classList.toggle('active', isLoop);
+    document.getElementById('tabCommandBtn').classList.toggle('active', isCommands);
+    document.getElementById('tabSettingsBtn').classList.toggle('active', isSettings);
+    document.getElementById('tabInfoBtn').classList.toggle('active', isInfo);
+  }
 
   function send(action, payload = null) {
     ws.send(JSON.stringify({ action, payload }));
@@ -195,6 +407,195 @@
     document.getElementById('legsFor').value = '';
     document.getElementById('legsAgainst').value = '';
     document.getElementById('avg').value = '';
+  }
+
+  function createLoopMessage() {
+    const message = document.getElementById('loopMessage').value.trim();
+    const intervalMinutes = Number(document.getElementById('loopInterval').value);
+
+    if (!message || !Number.isFinite(intervalMinutes) || intervalMinutes <= 0) {
+      alert('Anna viesti ja ajastus minuutteina');
+      return;
+    }
+
+    send('loop_add', { message, intervalMinutes });
+    document.getElementById('loopMessage').value = '';
+    document.getElementById('loopInterval').value = '';
+  }
+
+  function createCommand() {
+    const name = document.getElementById('commandName').value.trim().toLowerCase();
+    const response = document.getElementById('commandResponse').value.trim();
+
+    if (!name.startsWith('!') || name.length < 2 || !response) {
+      alert('Anna komento (!komento) ja vastaus');
+      return;
+    }
+
+    send('command_add', { name, response });
+    document.getElementById('commandName').value = '';
+    document.getElementById('commandResponse').value = '';
+  }
+
+  function formatCountdown(seconds) {
+    if (!Number.isFinite(seconds)) return '-';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+  }
+
+  function renderLoopMessages() {
+    const container = document.getElementById('loopList');
+    container.innerHTML = '';
+
+    if (!latestLoopMessages.length) {
+      container.innerHTML = '<span style="color:#9aa0b4;">Ei ajastettuja loop-viestejä.</span>';
+      return;
+    }
+
+    latestLoopMessages.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'loop-item';
+
+      const messageInput = document.createElement('input');
+      messageInput.value = item.message;
+      messageInput.placeholder = 'Viesti';
+
+      const intervalInput = document.createElement('input');
+      intervalInput.type = 'number';
+      intervalInput.min = '1';
+      intervalInput.step = '1';
+      intervalInput.value = item.intervalMinutes;
+
+      const saveBtn = document.createElement('button');
+      saveBtn.textContent = 'Tallenna';
+      saveBtn.onclick = () => {
+        const message = messageInput.value.trim();
+        const intervalMinutes = Number(intervalInput.value);
+
+        if (!message || !Number.isFinite(intervalMinutes) || intervalMinutes <= 0) {
+          alert('Anna viesti ja kelvollinen ajastus');
+          return;
+        }
+
+        send('loop_update', { id: item.id, message, intervalMinutes });
+      };
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.textContent = item.enabled ? 'Pysäytä' : 'Käynnistä';
+      toggleBtn.className = item.enabled ? 'danger' : '';
+      toggleBtn.onclick = () => send('loop_toggle', { id: item.id, enabled: !item.enabled });
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = 'Poista';
+      deleteBtn.className = 'danger';
+      deleteBtn.onclick = () => send('loop_delete', item.id);
+
+      const meta = document.createElement('div');
+      meta.className = 'loop-meta';
+      meta.textContent = item.enabled
+        ? `Aktiivinen • seuraava lähetys ~${formatCountdown(item.nextSendInSeconds)}`
+        : 'Pois käytöstä';
+
+      row.appendChild(messageInput);
+      row.appendChild(intervalInput);
+      row.appendChild(saveBtn);
+      row.appendChild(toggleBtn);
+      row.appendChild(deleteBtn);
+      row.appendChild(meta);
+      container.appendChild(row);
+    });
+  }
+
+  function renderCommands() {
+    const container = document.getElementById('commandList');
+    container.innerHTML = '';
+
+    if (!latestCustomCommands.length) {
+      container.innerHTML = '<span style="color:#9aa0b4;">Ei custom-komentoja.</span>';
+      return;
+    }
+
+    latestCustomCommands.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'command-item';
+
+      const nameInput = document.createElement('input');
+      nameInput.value = item.name;
+
+      const responseInput = document.createElement('input');
+      responseInput.value = item.response;
+
+      const saveBtn = document.createElement('button');
+      saveBtn.textContent = 'Tallenna';
+      saveBtn.onclick = () => {
+        const name = nameInput.value.trim().toLowerCase();
+        const response = responseInput.value.trim();
+
+        if (!name.startsWith('!') || name.length < 2 || !response) {
+          alert('Anna komento (!komento) ja vastaus');
+          return;
+        }
+
+        send('command_update', { id: item.id, name, response });
+      };
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = 'Poista';
+      deleteBtn.className = 'danger';
+      deleteBtn.onclick = () => send('command_delete', item.id);
+
+      row.appendChild(nameInput);
+      row.appendChild(responseInput);
+      row.appendChild(saveBtn);
+      row.appendChild(deleteBtn);
+      container.appendChild(row);
+    });
+  }
+
+
+  function saveSettings() {
+    const channel = document.getElementById('settingsChannel').value.trim().toLowerCase();
+
+    if (!channel) {
+      alert('Anna Twitch-kanavan nimi');
+      return;
+    }
+
+    send('settings_save', { channel });
+  }
+
+  function renderSettings() {
+    if (!latestSettings) return;
+
+    document.getElementById('settingsChannel').value = latestSettings.channel || '';
+    document.getElementById('settingsBotStatus').value = latestSettings.botConnected
+      ? 'Yhdistetty'
+      : 'Ei yhdistetty';
+  }
+
+
+  function openSettingsFromModal() {
+    switchTab('settings');
+    dismissSetupModal();
+  }
+
+  function dismissSetupModal() {
+    setupPromptDismissed = true;
+    document.getElementById('setupModal').classList.remove('show');
+  }
+
+  function maybeShowSetupModal() {
+    if (!latestSettings || latestSettings.setupCompleted) {
+      setupPromptDismissed = false;
+      document.getElementById('setupModal').classList.remove('show');
+      return;
+    }
+
+    if (setupPromptDismissed) return;
+
+    const modal = document.getElementById('setupModal');
+    modal.classList.add('show');
   }
 
   ws.onmessage = event => {
@@ -218,6 +619,14 @@
       li.appendChild(btn);
       ul.appendChild(li);
     });
+
+    latestLoopMessages = data.loopMessages || [];
+    latestCustomCommands = data.customCommands || [];
+    latestSettings = data.settings || null;
+    renderLoopMessages();
+    renderCommands();
+    renderSettings();
+    maybeShowSetupModal();
   };
 </script>
 

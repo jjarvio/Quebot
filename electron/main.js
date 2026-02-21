@@ -29,18 +29,11 @@ function createWindow() {
   });
 
   const config = loadConfig();
-
   const port = config?.port || 3000;
 
-  if (!config || !config.setupCompleted) {
-    // Setup UI tulee Expressin kautta
-    win.loadURL(`http://127.0.0.1:${port}/setup.html`);
-  } else {
-    // Admin UI
-    win.loadURL(`http://127.0.0.1:${port}/admin`);
-    bot.startBot();
-
-  }
+  // Aina sama hallintapaneeli (sisältää nyt myös asetukset)
+  win.loadURL(`http://127.0.0.1:${port}/admin`);
+  bot.startBot();
 
   win.on('closed', () => {
     win = null;
@@ -48,7 +41,6 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  // 🔑 Express + WebSocket AINA
   bot.startServer().then(() => {
     createWindow();
   });

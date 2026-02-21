@@ -85,31 +85,47 @@
   </div>
 
 <script>
-  const ws = new WebSocket(`ws://${location.host}`);
+  let ws = null;
+  let reconnectTimer = null;
 
-  ws.onmessage = event => {
-    const data = JSON.parse(event.data);
+  function renderOverlay(data) {
+    document.getElementById('current').textContent = data.current ?? '-';
+    document.getElementById('next').textContent = data.next ?? '-';
 
-    document.getElementById('current').textContent =
-      data.current ?? '-';
-
-    document.getElementById('next').textContent =
-      data.next ?? '-';
-
-    const queueText = data.queue.length
-        ? data.queue
-            .map((name, index) => `${index + 1}. ${name}`)
-            .join('  •  ')
-        : 'Ei ketään jonossa';
+    const queueText = Array.isArray(data.queue) && data.queue.length
+      ? data.queue.map((name, index) => `${index + 1}. ${name}`).join('  •  ')
+      : 'Ei ketään jonossa';
 
     const queueEl = document.getElementById('queue');
     queueEl.textContent = queueText;
 
-    // reset animation cleanisti kun data muuttuu
     queueEl.style.animation = 'none';
-    queueEl.offsetHeight; // force reflow
+    queueEl.offsetHeight;
     queueEl.style.animation = null;
-  };
+  }
+
+  function connectWebSocket() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
+    ws = new WebSocket(`ws://${location.host}`);
+
+    ws.onmessage = event => {
+      const data = JSON.parse(event.data);
+      renderOverlay(data);
+    };
+
+    ws.onclose = () => {
+      reconnectTimer = setTimeout(connectWebSocket, 1500);
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+  }
+
+  connectWebSocket();
 </script>
 </body>
 </html>
