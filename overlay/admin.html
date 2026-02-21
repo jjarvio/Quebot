@@ -109,6 +109,7 @@
     border: none;
     cursor: pointer;
     font-size: 14px;
+    padding: 0;
   }
 
   .result-grid {
@@ -130,12 +131,37 @@
   input::placeholder {
     color: var(--muted);
   }
+
+  .loop-create {
+    display: grid;
+    grid-template-columns: 1fr 160px auto;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .loop-item {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) 120px auto auto auto;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #2a2c36;
+  }
+
+  .loop-item:last-child {
+    border-bottom: none;
+  }
+
+  .loop-meta {
+    grid-column: 1 / -1;
+    color: var(--muted);
+    font-size: 12px;
+  }
 </style>
 </head>
 
 <body>
 
-  <!-- HEADER -->
   <div class="header">
     <h1>🎮 Jonobotti – Hallinta</h1>
     <div class="status">
@@ -150,19 +176,28 @@
     </div>
   </div>
 
-  <!-- ACTION BUTTONS -->
   <div class="cards">
     <button class="full" onclick="send('next')">▶️ Seuraava</button>
     <button class="full danger" onclick="send('clear')">🧹 Tyhjennä jono</button>
   </div>
 
-  <!-- QUEUE -->
   <div class="card">
     <h2>📋 Jono</h2>
     <ul id="queue"></ul>
   </div>
 
-  <!-- RESULT -->
+  <div class="card" style="margin-top:20px;">
+    <h2>🔁 Loop-viestit</h2>
+
+    <div class="loop-create">
+      <input id="loopMessage" type="text" placeholder="Viesti chattiin">
+      <input id="loopInterval" type="number" min="1" step="1" placeholder="Aika (min)">
+      <button onclick="createLoopMessage()">Lisää</button>
+    </div>
+
+    <div id="loopList"></div>
+  </div>
+
   <div class="card" style="margin-top:20px;">
     <h2>🏁 Pelin tulos</h2>
     <div class="result-grid">
@@ -175,6 +210,7 @@
 
 <script>
   const ws = new WebSocket(`ws://${location.host}`);
+  let latestLoopMessages = [];
 
   function send(action, payload = null) {
     ws.send(JSON.stringify({ action, payload }));
@@ -195,6 +231,100 @@
     document.getElementById('legsFor').value = '';
     document.getElementById('legsAgainst').value = '';
     document.getElementById('avg').value = '';
+  }
+
+  function createLoopMessage() {
+    const message = document.getElementById('loopMessage').value.trim();
+    const intervalMinutes = Number(document.getElementById('loopInterval').value);
+
+    if (!message || !Number.isFinite(intervalMinutes) || intervalMinutes <= 0) {
+      alert('Anna viesti ja ajastus minuutteina');
+      return;
+    }
+
+    send('loop_add', { message, intervalMinutes });
+    document.getElementById('loopMessage').value = '';
+    document.getElementById('loopInterval').value = '';
+  }
+
+  function formatCountdown(seconds) {
+    if (!Number.isFinite(seconds)) return '-';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+  }
+
+  function renderLoopMessages() {
+    const container = document.getElementById('loopList');
+    container.innerHTML = '';
+
+    if (!latestLoopMessages.length) {
+      container.innerHTML = '<span style="color:#9aa0b4;">Ei ajastettuja loop-viestejä.</span>';
+      return;
+    }
+
+    latestLoopMessages.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'loop-item';
+
+      const messageInput = document.createElement('input');
+      messageInput.value = item.message;
+      messageInput.placeholder = 'Viesti';
+
+      const intervalInput = document.createElement('input');
+      intervalInput.type = 'number';
+      intervalInput.min = '1';
+      intervalInput.step = '1';
+      intervalInput.value = item.intervalMinutes;
+
+      const saveBtn = document.createElement('button');
+      saveBtn.textContent = 'Tallenna';
+      saveBtn.onclick = () => {
+        const message = messageInput.value.trim();
+        const intervalMinutes = Number(intervalInput.value);
+
+        if (!message || !Number.isFinite(intervalMinutes) || intervalMinutes <= 0) {
+          alert('Anna viesti ja kelvollinen ajastus');
+          return;
+        }
+
+        send('loop_update', {
+          id: item.id,
+          message,
+          intervalMinutes
+        });
+      };
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.textContent = item.enabled ? 'Pysäytä' : 'Käynnistä';
+      toggleBtn.className = item.enabled ? 'danger' : '';
+      toggleBtn.onclick = () => {
+        send('loop_toggle', {
+          id: item.id,
+          enabled: !item.enabled
+        });
+      };
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = 'Poista';
+      deleteBtn.className = 'danger';
+      deleteBtn.onclick = () => send('loop_delete', item.id);
+
+      const meta = document.createElement('div');
+      meta.className = 'loop-meta';
+      meta.textContent = item.enabled
+        ? `Aktiivinen • seuraava lähetys ~${formatCountdown(item.nextSendInSeconds)}`
+        : 'Pois käytöstä';
+
+      row.appendChild(messageInput);
+      row.appendChild(intervalInput);
+      row.appendChild(saveBtn);
+      row.appendChild(toggleBtn);
+      row.appendChild(deleteBtn);
+      row.appendChild(meta);
+
+      container.appendChild(row);
+    });
   }
 
   ws.onmessage = event => {
@@ -218,6 +348,9 @@
       li.appendChild(btn);
       ul.appendChild(li);
     });
+
+    latestLoopMessages = data.loopMessages || [];
+    renderLoopMessages();
   };
 </script>
 

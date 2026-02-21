@@ -18,6 +18,7 @@ const BASE_PATH = app.isPackaged
 const CONFIG_FILE = path.join(BASE_PATH, 'config.json');
 const DATA_FILE = path.join(BASE_PATH, 'queue-data.json');
 const STATS_FILE = path.join(BASE_PATH, 'stats-data.json');
+const LOOP_MESSAGES_FILE = path.join(BASE_PATH, 'loop-messages.json');
 
 /* ========= CONFIG ========= */
 
@@ -60,8 +61,11 @@ function loadBotToken() {
 let queue = [];
 let current = null;
 let stats = {};
+let loopMessages = [];
 let twitchClient = null;
 let wss = null;
+let botChannel = null;
+let loopScheduler = null;
 
 /* ========= DATA LOAD ========= */
 
@@ -75,6 +79,13 @@ function loadData() {
   if (fs.existsSync(STATS_FILE)) {
     stats = JSON.parse(fs.readFileSync(STATS_FILE, 'utf8'));
   }
+
+  if (fs.existsSync(LOOP_MESSAGES_FILE)) {
+    const data = JSON.parse(fs.readFileSync(LOOP_MESSAGES_FILE, 'utf8'));
+    if (Array.isArray(data)) {
+      loopMessages = data;
+    }
+  }
 }
 
 function saveQueue() {
@@ -83,6 +94,59 @@ function saveQueue() {
 
 function saveStats() {
   fs.writeFileSync(STATS_FILE, JSON.stringify(stats, null, 2));
+}
+
+function saveLoopMessages() {
+  fs.writeFileSync(LOOP_MESSAGES_FILE, JSON.stringify(loopMessages, null, 2));
+}
+
+function getLoopMessagesForAdmin() {
+  const now = Date.now();
+
+  return loopMessages.map(item => {
+    const intervalMs = item.intervalMinutes * 60 * 1000;
+    const sentAt = item.lastSentAt || now;
+    const nextSendInMs = Math.max(0, intervalMs - (now - sentAt));
+
+    return {
+      id: item.id,
+      message: item.message,
+      intervalMinutes: item.intervalMinutes,
+      enabled: item.enabled,
+      nextSendInSeconds: Math.ceil(nextSendInMs / 1000)
+    };
+  });
+}
+
+function runLoopMessages() {
+  if (!twitchClient || !botChannel) return;
+
+  const now = Date.now();
+  let changed = false;
+
+  loopMessages.forEach(item => {
+    if (!item.enabled) return;
+
+    const intervalMs = item.intervalMinutes * 60 * 1000;
+    const lastSentAt = item.lastSentAt || 0;
+
+    if (now - lastSentAt >= intervalMs) {
+      twitchClient.say(botChannel, item.message);
+      item.lastSentAt = now;
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    saveLoopMessages();
+    broadcast();
+  }
+}
+
+function startLoopScheduler() {
+  if (loopScheduler) return;
+
+  loopScheduler = setInterval(runLoopMessages, 5000);
 }
 
 /* ========= BROADCAST ========= */
@@ -95,7 +159,8 @@ function broadcast() {
   const payload = JSON.stringify({
     current,
     next: queue[0] || null,
-    queue
+    queue,
+    loopMessages: getLoopMessagesForAdmin()
   });
 
   wss.clients.forEach(client => {
@@ -109,6 +174,7 @@ function broadcast() {
 
 function startServer() {
   loadData();
+  startLoopScheduler();
 
   const config = loadConfig();
   const appExpress = express();
@@ -213,6 +279,55 @@ function startServer() {
           current = null;
         }
 
+        if (data.action === 'loop_add') {
+          const message = String(data.payload?.message || '').trim();
+          const intervalMinutes = Number(data.payload?.intervalMinutes);
+
+          if (!message || !Number.isFinite(intervalMinutes) || intervalMinutes <= 0) return;
+
+          loopMessages.push({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            message,
+            intervalMinutes,
+            enabled: true,
+            lastSentAt: Date.now()
+          });
+          saveLoopMessages();
+        }
+
+        if (data.action === 'loop_update') {
+          const id = String(data.payload?.id || '');
+          const message = String(data.payload?.message || '').trim();
+          const intervalMinutes = Number(data.payload?.intervalMinutes);
+
+          if (!id || !message || !Number.isFinite(intervalMinutes) || intervalMinutes <= 0) return;
+
+          const target = loopMessages.find(item => item.id === id);
+          if (!target) return;
+
+          target.message = message;
+          target.intervalMinutes = intervalMinutes;
+          saveLoopMessages();
+        }
+
+        if (data.action === 'loop_toggle') {
+          const id = String(data.payload?.id || '');
+          const enabled = Boolean(data.payload?.enabled);
+          const target = loopMessages.find(item => item.id === id);
+          if (!target) return;
+
+          target.enabled = enabled;
+          target.lastSentAt = Date.now();
+          saveLoopMessages();
+        }
+
+        if (data.action === 'loop_delete') {
+          const id = String(data.payload || '');
+          const before = loopMessages.length;
+          loopMessages = loopMessages.filter(item => item.id !== id);
+          if (loopMessages.length !== before) saveLoopMessages();
+        }
+
         broadcast();
       } catch (err) {
         console.error('WebSocket-virhe:', err);
@@ -241,6 +356,7 @@ function startBot() {
   const BOT_USERNAME = 'SINUN_BOTIN_NIMI';
   const OAUTH_TOKEN = loadBotToken();
   const CHANNEL = config.channel.toLowerCase();
+  botChannel = `#${CHANNEL}`;
 
   twitchClient = new tmi.Client({
     identity: {
