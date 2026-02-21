@@ -441,9 +441,54 @@ function startBot() {
     const isMod = tags.mod || tags.badges?.broadcaster;
 
     if (normalizedMessage === '!jonoon') {
-      if (queue.includes(user) || user === current) return;
+      const queueIndex = queue.findIndex(name => name.toLowerCase() === user.toLowerCase());
+      const isCurrentPlayer = current && current.toLowerCase() === user.toLowerCase();
+
+      if (isCurrentPlayer) {
+        twitchClient.say(channel, `@${user} olet jo pelivuorossa.`);
+        return;
+      }
+
+      if (queueIndex !== -1) {
+        twitchClient.say(channel, `@${user} olet jo jonossa sijalla ${queueIndex + 1}.`);
+        return;
+      }
+
       queue.push(user);
+      const position = queue.length;
+      twitchClient.say(channel, `@${user} liittyminen onnistui ✅ Olet jonossa sijalla ${position}.`);
       broadcast();
+      return;
+    }
+
+    if (normalizedMessage === '!peru') {
+      const queueIndex = queue.findIndex(name => name.toLowerCase() === user.toLowerCase());
+      const isCurrentPlayer = current && current.toLowerCase() === user.toLowerCase();
+
+      if (isCurrentPlayer) {
+        twitchClient.say(channel, `@${user} olet jo pelivuorossa, et voi perua enää tästä kierroksesta.`);
+        return;
+      }
+
+      if (queueIndex === -1) {
+        twitchClient.say(channel, `@${user} et ole tällä hetkellä jonossa.`);
+        return;
+      }
+
+      queue.splice(queueIndex, 1);
+      twitchClient.say(channel, `@${user} osallistuminen peruttu. ❌`);
+      broadcast();
+      return;
+    }
+
+    if (normalizedMessage === '!jono') {
+      if (!queue.length) {
+        twitchClient.say(channel, '📋 Jono on tällä hetkellä tyhjä.');
+        return;
+      }
+
+      const queueList = queue.map((name, index) => `${index + 1}. ${name}`).join(' | ');
+      twitchClient.say(channel, `📋 Jono: ${queueList}`);
       return;
     }
 
