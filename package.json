@@ -1,7 +1,7 @@
 {
-  "name": "twitch-jonobotti",
+  "name": "moikkabot",
   "version": "1.0.0",
-  "description": "Twitch jonobotti + OBS overlay + Desktop admin (Electron)",
+  "description": "Twitch moikkabot + OBS overlay + Desktop admin (Electron)",
   "license": "ISC",
   "type": "commonjs",
 
@@ -25,8 +25,8 @@
   },
 
   "build": {
-    "appId": "com.twitch.jonobotti",
-    "productName": "Twitch Jonobotti",
+    "appId": "com.moikkabot.app",
+    "productName": "Moikkabot",
 
     "files": [
       "bot.js",
