@@ -249,6 +249,7 @@
     <button id="tabQueueBtn" class="tab-btn active" onclick="switchTab('queue')">📋 Jono</button>
     <button id="tabLoopBtn" class="tab-btn" onclick="switchTab('loop')">🔁 Loop-viestit</button>
     <button id="tabCommandBtn" class="tab-btn" onclick="switchTab('commands')">⚡ Custom Commands</button>
+    <button id="tabCs2Btn" class="tab-btn" onclick="switchTab('cs2')">🔥 CS2</button>
     <button id="tabSettingsBtn" class="tab-btn" onclick="switchTab('settings')">⚙️ Asetukset</button>
     <button id="tabInfoBtn" class="tab-btn" onclick="switchTab('info')">ℹ️ Info</button>
   </div>
@@ -303,6 +304,23 @@
     </div>
   </section>
 
+
+  <section id="tabCs2" class="tab-content">
+    <div class="card">
+      <h2>🔥 FACEIT CS2 Session</h2>
+      <div class="result-grid">
+        <input id="faceitElo" type="text" placeholder="ELO" disabled>
+        <input id="faceitChange" type="text" placeholder="Session" disabled>
+        <input id="faceitWl" type="text" placeholder="W/L" disabled>
+        <input id="faceitStreak" type="text" placeholder="Streak" disabled>
+      </div>
+      <div style="margin-top:12px;color:#9aa0b4;font-size:13px;line-height:1.5;">
+        Käynnistä chatissa: <code>!faceit start [nickname]</code> (mod/broadcaster),
+        pysäytä: <code>!faceit stop</code>, nollaa: <code>!faceit reset</code>.
+      </div>
+    </div>
+  </section>
+
   <section id="tabSettings" class="tab-content">
     <div class="card">
       <h2>⚙️ Asetukset</h2>
@@ -311,6 +329,11 @@
         <input id="settingsChannel" type="text" placeholder="Twitch-kanava (ilman @)">
         <input id="settingsBotStatus" type="text" placeholder="Botin tila" disabled>
         <button onclick="saveSettings()">Tallenna</button>
+      </div>
+
+      <div class="command-create" style="grid-template-columns: 1fr auto;">
+        <input id="settingsFaceitApi" type="password" placeholder="FACEIT API key">
+        <button onclick="saveSettings()">Tallenna FACEIT API</button>
       </div>
 
       <div style="color:#9aa0b4;font-size:13px;line-height:1.5;">
@@ -365,25 +388,28 @@
   let latestLoopMessages = [];
   let latestCustomCommands = [];
   let latestSettings = null;
+  let latestFaceit = null;
   let setupPromptDismissed = false;
 
   function switchTab(tab) {
     const isQueue = tab === 'queue';
     const isLoop = tab === 'loop';
-
-    document.getElementById('tabQueue').classList.toggle('active', isQueue);
-    document.getElementById('tabLoop').classList.toggle('active', isLoop);
     const isCommands = tab === 'commands';
+    const isCs2 = tab === 'cs2';
     const isSettings = tab === 'settings';
     const isInfo = tab === 'info';
 
+    document.getElementById('tabQueue').classList.toggle('active', isQueue);
+    document.getElementById('tabLoop').classList.toggle('active', isLoop);
     document.getElementById('tabCommands').classList.toggle('active', isCommands);
+    document.getElementById('tabCs2').classList.toggle('active', isCs2);
     document.getElementById('tabSettings').classList.toggle('active', isSettings);
     document.getElementById('tabInfo').classList.toggle('active', isInfo);
 
     document.getElementById('tabQueueBtn').classList.toggle('active', isQueue);
     document.getElementById('tabLoopBtn').classList.toggle('active', isLoop);
     document.getElementById('tabCommandBtn').classList.toggle('active', isCommands);
+    document.getElementById('tabCs2Btn').classList.toggle('active', isCs2);
     document.getElementById('tabSettingsBtn').classList.toggle('active', isSettings);
     document.getElementById('tabInfoBtn').classList.toggle('active', isInfo);
   }
@@ -562,7 +588,9 @@
       return;
     }
 
-    send('settings_save', { channel });
+    const faceitApiKey = document.getElementById('settingsFaceitApi').value.trim();
+
+    send('settings_save', { channel, faceitApiKey });
   }
 
   function renderSettings() {
@@ -572,8 +600,21 @@
     document.getElementById('settingsBotStatus').value = latestSettings.botConnected
       ? 'Yhdistetty'
       : 'Ei yhdistetty';
+
+    document.getElementById('settingsFaceitApi').value = latestSettings.faceitApiKey || '';
   }
 
+
+
+  function renderFaceit() {
+    const faceit = latestFaceit || { currentElo: 0, eloChange: 0, wins: 0, losses: 0, streak: 0 };
+    const sign = faceit.eloChange > 0 ? '+' : '';
+
+    document.getElementById('faceitElo').value = String(faceit.currentElo || 0);
+    document.getElementById('faceitChange').value = `${sign}${faceit.eloChange || 0}`;
+    document.getElementById('faceitWl').value = `${faceit.wins || 0}-${faceit.losses || 0}`;
+    document.getElementById('faceitStreak').value = String(faceit.streak || 0);
+  }
 
   function openSettingsFromModal() {
     switchTab('settings');
@@ -601,6 +642,12 @@
   ws.onmessage = event => {
     const data = JSON.parse(event.data);
 
+    if (data.type === 'faceitUpdate') {
+      latestFaceit = data.data || null;
+      renderFaceit();
+      return;
+    }
+
     document.getElementById('current').textContent = data.current ?? '-';
     document.getElementById('next').textContent = data.next ?? '-';
 
@@ -623,9 +670,11 @@
     latestLoopMessages = data.loopMessages || [];
     latestCustomCommands = data.customCommands || [];
     latestSettings = data.settings || null;
+    latestFaceit = data.faceit || latestFaceit;
     renderLoopMessages();
     renderCommands();
     renderSettings();
+    renderFaceit();
     maybeShowSetupModal();
   };
 </script>

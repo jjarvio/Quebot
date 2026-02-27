@@ -4,6 +4,7 @@ const express = require('express');
 const WebSocket = require('ws');
 const tmi = require('tmi.js');
 const { app } = require('electron');
+const { FaceitService } = require('./faceit');
 
 /* ========= POLUT (DEV + PACKAGED) ========= */
 
@@ -16,6 +17,7 @@ const DATA_FILE = path.join(BASE_PATH, 'queue-data.json');
 const STATS_FILE = path.join(BASE_PATH, 'stats-data.json');
 const LOOP_MESSAGES_FILE = path.join(BASE_PATH, 'loop-messages.json');
 const CUSTOM_COMMANDS_FILE = path.join(BASE_PATH, 'custom-commands.json');
+const FACEIT_SESSION_FILE = path.join(BASE_PATH, 'faceit-session.json');
 
 /* ========= CONFIG ========= */
 
@@ -24,10 +26,14 @@ function loadConfig() {
     fs.writeFileSync(CONFIG_FILE, JSON.stringify({
       channel: '',
       port: 3000,
-      setupCompleted: false
+      setupCompleted: false,
+      faceitApiKey: ''
     }, null, 2));
   }
-  return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+
+  const cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+  cfg.faceitApiKey = cfg.faceitApiKey || '';
+  return cfg;
 }
 
 function saveConfig(cfg) {
@@ -62,6 +68,7 @@ let twitchClient = null;
 let wss = null;
 let botChannel = null;
 let loopScheduler = null;
+let faceitService = null;
 
 /* ========= DATA LOAD ========= */
 
@@ -135,11 +142,33 @@ function getCustomCommandsForAdmin() {
 
 function getAdminSettings() {
   const cfg = loadConfig();
+
+  if (!process.env.FACEIT_API_KEY && cfg.faceitApiKey) {
+    process.env.FACEIT_API_KEY = cfg.faceitApiKey;
+  }
+
   return {
     channel: cfg.channel || '',
     setupCompleted: Boolean(cfg.setupCompleted),
-    botConnected: Boolean(twitchClient)
+    botConnected: Boolean(twitchClient),
+    faceitApiKey: process.env.FACEIT_API_KEY || ''
   };
+}
+
+function getFaceitOverlayData() {
+  if (!faceitService) {
+    return {
+      currentElo: 0,
+      eloChange: 0,
+      wins: 0,
+      losses: 0,
+      streak: 0,
+      active: false,
+      nickname: ''
+    };
+  }
+
+  return faceitService.getOverlayData();
 }
 
 function runLoopMessages() {
@@ -174,6 +203,21 @@ function startLoopScheduler() {
 
 /* ========= BROADCAST ========= */
 
+function broadcastFaceitUpdate() {
+  if (!wss) return;
+
+  const payload = JSON.stringify({
+    type: 'faceitUpdate',
+    data: getFaceitOverlayData()
+  });
+
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(payload);
+    }
+  });
+}
+
 function broadcast() {
   saveQueue();
 
@@ -185,7 +229,9 @@ function broadcast() {
     queue,
     loopMessages: getLoopMessagesForAdmin(),
     customCommands: getCustomCommandsForAdmin(),
-    settings: getAdminSettings()
+    settings: getAdminSettings(),
+    faceit: getFaceitOverlayData(),
+    type: 'overlayState'
   });
 
   wss.clients.forEach(client => {
@@ -200,6 +246,24 @@ function broadcast() {
 function startServer() {
   loadData();
   startLoopScheduler();
+
+  const initialConfig = loadConfig();
+  if (!process.env.FACEIT_API_KEY && initialConfig.faceitApiKey) {
+    process.env.FACEIT_API_KEY = initialConfig.faceitApiKey;
+  }
+
+  faceitService = new FaceitService({
+    sessionFile: FACEIT_SESSION_FILE,
+    getApiKey: () => process.env.FACEIT_API_KEY || '',
+    onUpdate: () => {
+      broadcastFaceitUpdate();
+      broadcast();
+    },
+    onError: (label, err) => {
+      console.error(`⚠️ ${label}:`, err?.message || err);
+    }
+  });
+  faceitService.startPolling(60000);
 
   const config = loadConfig();
   const appExpress = express();
@@ -404,13 +468,17 @@ function startServer() {
 
         if (data.action === 'settings_save') {
           const channel = String(data.payload?.channel || '').trim().toLowerCase();
+          const faceitApiKey = String(data.payload?.faceitApiKey || '').trim();
           if (!channel) return;
 
           const cfg = loadConfig();
           const hasChanged = cfg.channel !== channel || !cfg.setupCompleted;
           cfg.channel = channel;
           cfg.setupCompleted = true;
+          cfg.faceitApiKey = faceitApiKey;
           saveConfig(cfg);
+
+          process.env.FACEIT_API_KEY = faceitApiKey;
 
           if (hasChanged) {
             stopBot();
@@ -486,8 +554,58 @@ function startBot() {
     if (self || !message.startsWith('!')) return;
 
     const normalizedMessage = message.trim().toLowerCase();
+    const messageParts = message.trim().split(/\s+/);
     const user = tags['display-name'];
     const isMod = tags.mod || tags.badges?.broadcaster;
+
+    if (normalizedMessage.startsWith('!faceit')) {
+      const subcommand = (messageParts[1] || '').toLowerCase();
+      const nickname = messageParts.slice(2).join(' ').trim() || user;
+
+      if (!faceitService) {
+        twitchClient.say(channel, '⚠️ FACEIT-järjestelmä ei ole käytettävissä.');
+        return;
+      }
+
+      if (subcommand === 'start') {
+        if (!isMod) return;
+
+        faceitService.startSession(nickname)
+          .then(() => {
+            const snapshot = faceitService.getSession();
+            twitchClient.say(
+              channel,
+              `✅ FACEIT session aloitettu: ${snapshot.nickname} (${snapshot.currentElo} ELO).`
+            );
+          })
+          .catch(err => {
+            twitchClient.say(channel, `⚠️ FACEIT start epäonnistui: ${err.message}`);
+          });
+        return;
+      }
+
+      if (subcommand === 'stop') {
+        if (!isMod) return;
+        faceitService.stopSession();
+        twitchClient.say(channel, '🛑 FACEIT session pysäytetty.');
+        return;
+      }
+
+      if (subcommand === 'reset') {
+        if (!isMod) return;
+        faceitService.resetSession();
+        twitchClient.say(channel, '♻️ FACEIT session nollattu.');
+        return;
+      }
+
+      const snapshot = faceitService.getSession();
+      const sign = snapshot.eloChange > 0 ? '+' : '';
+      twitchClient.say(
+        channel,
+        `Session: ${sign}${snapshot.eloChange} ELO (${snapshot.wins}W-${snapshot.losses}L) | Streak: ${snapshot.streak}`
+      );
+      return;
+    }
 
     if (normalizedMessage === '!jonoon') {
       const queueIndex = queue.findIndex(name => name.toLowerCase() === user.toLowerCase());
