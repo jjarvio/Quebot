@@ -50,6 +50,24 @@
     padding: 16px;
   }
 
+  .stat-box {
+    background: #12141d;
+    border: 1px solid #2a2c36;
+    border-radius: 10px;
+    padding: 10px;
+  }
+
+  .stat-box .title {
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 5px;
+  }
+
+  .stat-box .value {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
   .tabs {
     display: flex;
     gap: 8px;
@@ -250,6 +268,7 @@
     <button id="tabLoopBtn" class="tab-btn" onclick="switchTab('loop')">🔁 Loop-viestit</button>
     <button id="tabCommandBtn" class="tab-btn" onclick="switchTab('commands')">⚡ Custom Commands</button>
     <button id="tabSettingsBtn" class="tab-btn" onclick="switchTab('settings')">⚙️ Asetukset</button>
+    <button id="tabCs2Btn" class="tab-btn" onclick="switchTab('cs2')">🎯 CS2</button>
     <button id="tabInfoBtn" class="tab-btn" onclick="switchTab('info')">ℹ️ Info</button>
   </div>
 
@@ -309,8 +328,12 @@
 
       <div class="command-create">
         <input id="settingsChannel" type="text" placeholder="Twitch-kanava (ilman @)">
-        <input id="settingsBotStatus" type="text" placeholder="Botin tila" disabled>
+        <input id="settingsFaceitApiKey" type="password" placeholder="FACEIT API key">
         <button onclick="saveSettings()">Tallenna</button>
+      </div>
+
+      <div class="command-create" style="grid-template-columns: 1fr; margin-top: -4px;">
+        <input id="settingsBotStatus" type="text" placeholder="Botin tila" disabled>
       </div>
 
       <div style="color:#9aa0b4;font-size:13px;line-height:1.5;">
@@ -319,6 +342,25 @@
         2) Kirjoita: <code>/mod moikkabot</code><br>
         3) Varmista, että botin käyttäjänimi vastaa tätä nimeä botin asetuksissa/tokenissa.
       </div>
+    </div>
+  </section>
+
+
+  <section id="tabCs2" class="tab-content">
+    <div class="card">
+      <h2>🎯 CS2 / FACEIT Session</h2>
+      <div id="cs2Stats" style="display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:10px;">
+        <div class="stat-box"><div class="title">Pelaaja</div><div class="value" id="cs2Nickname">-</div></div>
+        <div class="stat-box"><div class="title">Session tila</div><div class="value" id="cs2Active">Ei aktiivinen</div></div>
+        <div class="stat-box"><div class="title">Nykyinen ELO</div><div class="value" id="cs2Elo">0</div></div>
+        <div class="stat-box"><div class="title">Session ELO muutos</div><div class="value" id="cs2Change">+0</div></div>
+        <div class="stat-box"><div class="title">W/L</div><div class="value" id="cs2WL">0-0</div></div>
+        <div class="stat-box"><div class="title">Winrate</div><div class="value" id="cs2WinRate">0%</div></div>
+        <div class="stat-box"><div class="title">Streak</div><div class="value" id="cs2Streak">0</div></div>
+        <div class="stat-box"><div class="title">Matsit sessiossa</div><div class="value" id="cs2Matches">0</div></div>
+      </div>
+      <div style="margin-top:14px; color:#9aa0b4; font-size:13px;">Uusimmat matsit</div>
+      <ul id="cs2RecentMatches"></ul>
     </div>
   </section>
 
@@ -365,6 +407,7 @@
   let latestLoopMessages = [];
   let latestCustomCommands = [];
   let latestSettings = null;
+  let latestFaceit = null;
   let setupPromptDismissed = false;
 
   function switchTab(tab) {
@@ -375,16 +418,19 @@
     document.getElementById('tabLoop').classList.toggle('active', isLoop);
     const isCommands = tab === 'commands';
     const isSettings = tab === 'settings';
+    const isCs2 = tab === 'cs2';
     const isInfo = tab === 'info';
 
     document.getElementById('tabCommands').classList.toggle('active', isCommands);
     document.getElementById('tabSettings').classList.toggle('active', isSettings);
+    document.getElementById('tabCs2').classList.toggle('active', isCs2);
     document.getElementById('tabInfo').classList.toggle('active', isInfo);
 
     document.getElementById('tabQueueBtn').classList.toggle('active', isQueue);
     document.getElementById('tabLoopBtn').classList.toggle('active', isLoop);
     document.getElementById('tabCommandBtn').classList.toggle('active', isCommands);
     document.getElementById('tabSettingsBtn').classList.toggle('active', isSettings);
+    document.getElementById('tabCs2Btn').classList.toggle('active', isCs2);
     document.getElementById('tabInfoBtn').classList.toggle('active', isInfo);
   }
 
@@ -556,13 +602,14 @@
 
   function saveSettings() {
     const channel = document.getElementById('settingsChannel').value.trim().toLowerCase();
+    const faceitApiKey = document.getElementById('settingsFaceitApiKey').value.trim();
 
     if (!channel) {
       alert('Anna Twitch-kanavan nimi');
       return;
     }
 
-    send('settings_save', { channel });
+    send('settings_save', { channel, faceitApiKey });
   }
 
   function renderSettings() {
@@ -572,8 +619,39 @@
     document.getElementById('settingsBotStatus').value = latestSettings.botConnected
       ? 'Yhdistetty'
       : 'Ei yhdistetty';
+
+    document.getElementById('settingsFaceitApiKey').value = latestSettings.faceitApiKey || '';
   }
 
+
+  function renderCs2Stats() {
+    const d = latestFaceit || {};
+    document.getElementById('cs2Nickname').textContent = d.nickname || '-';
+    document.getElementById('cs2Active').textContent = d.active ? 'Aktiivinen' : 'Ei aktiivinen';
+    document.getElementById('cs2Elo').textContent = d.currentElo ?? 0;
+    document.getElementById('cs2Change').textContent = `${(d.eloChange || 0) >= 0 ? '+' : ''}${d.eloChange || 0}`;
+    document.getElementById('cs2WL').textContent = `${d.wins || 0}-${d.losses || 0}`;
+    document.getElementById('cs2WinRate').textContent = `${d.winRate || 0}%`;
+    document.getElementById('cs2Streak').textContent = d.streak || 0;
+    document.getElementById('cs2Matches').textContent = d.totalMatches || 0;
+
+    const ul = document.getElementById('cs2RecentMatches');
+    ul.innerHTML = '';
+    const recent = Array.isArray(d.recentMatches) ? d.recentMatches : [];
+    if (!recent.length) {
+      const li = document.createElement('li');
+      li.textContent = 'Ei matsihistoriaa tällä sessiolla.';
+      ul.appendChild(li);
+      return;
+    }
+
+    recent.forEach(match => {
+      const li = document.createElement('li');
+      const symbol = match.outcome === 'win' ? '✅' : '❌';
+      li.textContent = `${symbol} ${match.id}`;
+      ul.appendChild(li);
+    });
+  }
 
   function openSettingsFromModal() {
     switchTab('settings');
@@ -602,6 +680,8 @@
     const data = JSON.parse(event.data);
 
     if (data.type === 'faceitUpdate') {
+      latestFaceit = data.data || null;
+      renderCs2Stats();
       return;
     }
 
@@ -627,9 +707,11 @@
     latestLoopMessages = data.loopMessages || [];
     latestCustomCommands = data.customCommands || [];
     latestSettings = data.settings || null;
+    latestFaceit = data.faceit || latestFaceit;
     renderLoopMessages();
     renderCommands();
     renderSettings();
+    renderCs2Stats();
     maybeShowSetupModal();
   };
 </script>

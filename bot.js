@@ -26,7 +26,8 @@ function loadConfig() {
     fs.writeFileSync(CONFIG_FILE, JSON.stringify({
       channel: '',
       port: 3000,
-      setupCompleted: false
+      setupCompleted: false,
+      faceitApiKey: ''
     }, null, 2));
   }
   return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
@@ -34,6 +35,11 @@ function loadConfig() {
 
 function saveConfig(cfg) {
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2));
+}
+
+function applyFaceitApiKeyFromConfig(cfg) {
+  const apiKey = String(cfg?.faceitApiKey || '').trim();
+  process.env.FACEIT_API_KEY = apiKey;
 }
 
 /* ========= BOT TOKEN ========= */
@@ -141,7 +147,8 @@ function getAdminSettings() {
   return {
     channel: cfg.channel || '',
     setupCompleted: Boolean(cfg.setupCompleted),
-    botConnected: Boolean(twitchClient)
+    botConnected: Boolean(twitchClient),
+    faceitApiKey: String(cfg.faceitApiKey || '')
   };
 }
 
@@ -226,6 +233,9 @@ function startServer() {
   loadData();
   startLoopScheduler();
 
+  const cfg = loadConfig();
+  applyFaceitApiKeyFromConfig(cfg);
+
   if (!faceitService) {
     faceitService = new FaceitService({
       sessionFile: FACEIT_SESSION_FILE,
@@ -235,7 +245,7 @@ function startServer() {
     faceitService.startPolling();
   }
 
-  const config = loadConfig();
+  const config = cfg;
   const appExpress = express();
 
   const overlayPath = app.isPackaged
@@ -438,17 +448,26 @@ function startServer() {
 
         if (data.action === 'settings_save') {
           const channel = String(data.payload?.channel || '').trim().toLowerCase();
+          const faceitApiKey = String(data.payload?.faceitApiKey || '').trim();
           if (!channel) return;
 
           const cfg = loadConfig();
-          const hasChanged = cfg.channel !== channel || !cfg.setupCompleted;
+          const hasChannelChanged = cfg.channel !== channel || !cfg.setupCompleted;
+          const hasApiChanged = String(cfg.faceitApiKey || '') !== faceitApiKey;
+
           cfg.channel = channel;
+          cfg.faceitApiKey = faceitApiKey;
           cfg.setupCompleted = true;
           saveConfig(cfg);
+          applyFaceitApiKeyFromConfig(cfg);
 
-          if (hasChanged) {
+          if (hasChannelChanged) {
             stopBot();
             startBot();
+          }
+
+          if (hasApiChanged && faceitService?.session?.active) {
+            faceitService.pollOnce();
           }
         }
 

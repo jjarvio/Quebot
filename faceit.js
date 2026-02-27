@@ -120,12 +120,23 @@ class FaceitService {
   }
 
   getOverlayData() {
+    const totalMatches = this.session.wins + this.session.losses;
+    const winRate = totalMatches > 0
+      ? Number(((this.session.wins / totalMatches) * 100).toFixed(1))
+      : 0;
+
     return {
+      active: this.session.active,
+      nickname: this.session.nickname,
       currentElo: this.session.currentElo,
+      startElo: this.session.startElo,
       eloChange: this.session.eloChange,
       wins: this.session.wins,
       losses: this.session.losses,
-      streak: this.session.streak
+      streak: this.session.streak,
+      winRate,
+      totalMatches,
+      recentMatches: this.session.matches.slice(-5).reverse()
     };
   }
 
