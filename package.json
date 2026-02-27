@@ -4,36 +4,30 @@
   "description": "Twitch moikkabot + OBS overlay + Desktop admin (Electron)",
   "license": "ISC",
   "type": "commonjs",
-
   "main": "electron/main.js",
-
   "scripts": {
     "dev:desktop": "electron .",
     "build:win": "electron-builder --win"
   },
-
   "dependencies": {
     "express": "^5.2.1",
     "tmi.js": "^1.8.5",
     "ws": "^8.19.0"
   },
-
   "devDependencies": {
     "electron": "^40.4.1",
     "electron-builder": "^26.7.0",
     "wait-on": "^9.0.4"
   },
-
   "build": {
     "appId": "com.moikkabot.app",
     "productName": "Moikkabot",
-
     "files": [
       "bot.js",
+      "faceit.js",
       "electron/**",
       "package.json"
     ],
-
     "extraResources": [
       {
         "from": "overlay",
@@ -44,10 +38,8 @@
         "to": "bot-token.txt"
       }
     ],
-
     "win": {
       "target": "nsis"
     }
   }
-
 }
