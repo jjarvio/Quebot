@@ -1,4 +1,4 @@
-# Twitch Jonobotti 🎮
+# Moikkabot 🎮
 
 Desktop-sovellus Twitch-streamaajille:
 - !jonoon komento
@@ -16,7 +16,7 @@ Desktop-sovellus Twitch-streamaajille:
 1. Asenna sovellus
 2. Lisää botille mod-oikeudet Twitchissä
 3. Avaa sovellus
-4. Syötä kanavan nimi setupissa
+4. Syötä kanavan nimi Asetukset-välilehdellä
 5. Valmis 🎉
 
 ## 💬 Komennot
