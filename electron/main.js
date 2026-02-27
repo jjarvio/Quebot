@@ -32,7 +32,7 @@ function createWindow() {
   const port = config?.port || 3000;
 
   // Aina sama hallintapaneeli (sisältää nyt myös asetukset)
-  win.loadURL(`http://127.0.0.1:${port}/admin`);
+  win.loadURL(`http://127.0.0.1:${port}/admin?v=${Date.now()}`);
   bot.startBot();
 
   win.on('closed', () => {

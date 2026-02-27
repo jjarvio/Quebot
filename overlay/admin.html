@@ -328,12 +328,16 @@
 
       <div class="command-create">
         <input id="settingsChannel" type="text" placeholder="Twitch-kanava (ilman @)">
-        <input id="settingsFaceitApiKey" type="password" placeholder="FACEIT API key">
+        <input id="settingsFaceitApiKey" type="text" placeholder="FACEIT API key">
         <button onclick="saveSettings()">Tallenna</button>
       </div>
 
       <div class="command-create" style="grid-template-columns: 1fr; margin-top: -4px;">
         <input id="settingsBotStatus" type="text" placeholder="Botin tila" disabled>
+      </div>
+
+      <div id="settingsFaceitHelp" style="color:#9aa0b4;font-size:12px;margin:-2px 0 10px;">
+        FACEIT API key tallennetaan paikalliseen config.json tiedostoon.
       </div>
 
       <div style="color:#9aa0b4;font-size:13px;line-height:1.5;">
